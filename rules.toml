@@ -1,63 +1,79 @@
 # Categories the AI is allowed to pick from. Rename or add freely.
 categories = [
-  "Salary & income", "Housing", "Groceries", "Restaurants", "Delivery",
-  "Transport", "Fuel", "Health", "Education", "Shopping", "Subscriptions",
-  "Utilities & phone", "Travel", "Leisure", "Bank fees & taxes",
-  "Credit card bill", "Investments", "Transfers", "Cash withdrawal", "Other",
+  "Income", "Housing", "Groceries", "Restaurants", "Delivery",
+  "Transport", "Health", "Education", "Shopping", "Subscriptions",
+  "Utilities", "Travel", "Leisure", "Fees",
+  "Investments", "Other",
 ]
 
 # Rules run first, top to bottom; the first match wins. Patterns are regular
 # expressions matched against the statement description, case-insensitive.
 # When the AI gets something wrong, add a rule here and run `recategorize`.
+#
+# Every rule must point to a category from the list above. Itaú descriptions are
+# uppercase, often truncated and without accents. Short tokens use \b (word
+# boundary, written "\\b" inside the quotes) so they don't match inside other words. Anything without a rule
+# (PIX/TED transfers, boletos, card bill, withdrawals) goes to the AI.
 
 [[rules]]
-pattern = "SALARIO|PAGTO SALARIO|PROVENTOS"
-category = "Salary & income"
+pattern = "SALARIO|REMUNERACAO|PROVENTOS|\\bFERIAS\\b|\\bINSS\\b"
+category = "Income"
 
 [[rules]]
-pattern = "REND PAGO APLIC|RENDIMENTO|APLIC AUT|RES APLIC|CDB|TESOURO"
+pattern = "REND PAGO APLIC|RENDIMENTO|APLIC AUT|APLICACAO|RES APLIC|RESGATE|\\bCDB\\b|\\bLCI\\b|\\bLCA\\b|TESOURO"
 category = "Investments"
 
 [[rules]]
-pattern = "FATURA|ITAU CARTAO|ITAUCARD|PAG FAT"
-category = "Credit card bill"
+pattern = "^TAR\\b|TARIFA|\\bIOF\\b|JUROS|\\bMORA\\b|ENCARGOS|ANUIDADE"
+category = "Fees"
 
+# Before Restaurants and Transport, so "IFOOD *RESTAURANTE" and "UBER EATS" land here.
 [[rules]]
-pattern = "^TAR |TARIFA|IOF|JUROS|ENCARGOS"
-category = "Bank fees & taxes"
-
-[[rules]]
-pattern = "SAQUE"
-category = "Cash withdrawal"
-
-[[rules]]
-pattern = "IFOOD|RAPPI|ZE DELIVERY|AIQFOME"
+pattern = "IFOOD|\\bIFD\\b|RAPPI|ZE DELIVERY|AIQFOME|UBER ?EATS"
 category = "Delivery"
 
+# Before Shopping, so "AMAZON PRIME" lands here and plain "AMAZON" in Shopping.
 [[rules]]
-pattern = "UBER|99 ?APP|99POP|99 TAXI|METRO|SPTRANS|BILHETE UNICO"
-category = "Transport"
-
-[[rules]]
-pattern = "POSTO|SHELL|IPIRANGA|PETROBRAS|BR MANIA"
-category = "Fuel"
-
-[[rules]]
-pattern = "NETFLIX|SPOTIFY|DISNEY|PRIME VIDEO|AMAZON PRIME|HBO|MAX\\b|YOUTUBE|APPLE\\.COM|GOOGLE ONE"
+pattern = "NETFLIX|SPOTIFY|DISNEY|PRIME VIDEO|AMAZON ?PRIME|\\bHBO|\\bMAX\\b|YOUTUBE|APPLE\\.COM|GOOGLE ONE|DEEZER|GLOBOPLAY|PARAMOUNT"
 category = "Subscriptions"
 
 [[rules]]
-pattern = "DROGA|DROGASIL|RAIA|PAGUE MENOS|FARMACIA|UNIMED|AMIL|HAPVIDA"
-category = "Health"
+pattern = "UBER|\\b99 ?(APP|POP|TAXI)\\b|\\bMETRO\\b|SPTRANS|BILHETE UNICO|ESTACIONAMENTO|SEM PARAR|CONECTCAR|VELOE|POSTO|\\bSHELL\\b|IPIRANGA|PETROBRAS|BR MANIA"
+category = "Transport"
 
 [[rules]]
-pattern = "CARREFOUR|PAO DE ACUCAR|ASSAI|ATACADAO|EXTRA|SUPERMERC|MERCADO|HORTIFRUTI"
+pattern = "DROGA|\\bRAIA\\b|PAGUE MENOS|FARMACIA|UNIMED|\\bAMIL\\b|HAPVIDA|LABORATORIO|HOSPITAL|CLINICA"
+category = "Health"
+
+# Before Groceries, so "MERCADO LIVRE" isn't caught by "MERCADO".
+[[rules]]
+pattern = "MERCADO ?LIVRE|AMAZON|SHOPEE|ALIEXPRESS|MAGALU|MAGAZINE LUIZA|AMERICANAS|SHEIN|RENNER|RIACHUELO"
+category = "Shopping"
+
+[[rules]]
+pattern = "CARREFOUR|PAO DE ACUCAR|ASSAI|ATACADAO|\\bEXTRA\\b|SUPERMERC|MERCADO|HORTIFRUTI|PADARIA|ACOUGUE"
 category = "Groceries"
 
 [[rules]]
-pattern = "ENEL|LIGHT|CEMIG|COPEL|SABESP|COMGAS|NATURGY|VIVO|CLARO|TIM\\b|OI\\b"
-category = "Utilities & phone"
+pattern = "RESTAURANTE|LANCHONETE|PIZZARIA|CHURRASCARIA|MC ?DONALDS|BURGER KING|STARBUCKS|OUTBACK"
+category = "Restaurants"
 
 [[rules]]
-pattern = "ALUGUEL|CONDOMINIO|IPTU"
+pattern = "ENEL|\\bLIGHT\\b|CEMIG|COPEL|SABESP|COMGAS|NATURGY|\\bVIVO\\b|\\bCLARO\\b|\\bTIM\\b|\\bOI\\b"
+category = "Utilities"
+
+[[rules]]
+pattern = "ALUGUEL|CONDOMINIO|IPTU|QUINTOANDAR"
 category = "Housing"
+
+[[rules]]
+pattern = "LATAM|GOL LINHAS|AZUL LINHAS|VOEAZUL|AIRBNB|BOOKING|HOTEL|DECOLAR"
+category = "Travel"
+
+[[rules]]
+pattern = "ESCOLA|COLEGIO|FACULDADE|UNIVERSIDADE|UDEMY|ALURA|COURSERA"
+category = "Education"
+
+[[rules]]
+pattern = "CINEMA|CINEMARK|INGRESSO|SYMPLA|STEAM"
+category = "Leisure"

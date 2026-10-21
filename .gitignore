@@ -1,0 +1,11 @@
+# Bank data never goes in git
+data/
+*.duckdb
+*.duckdb.wal
+*.ofx
+*.OFX
+*.csv
+.env
+
+__pycache__/
+.venv/

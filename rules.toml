@@ -1,0 +1,63 @@
+# Categories the AI is allowed to pick from. Rename or add freely.
+categories = [
+  "Salary & income", "Housing", "Groceries", "Restaurants", "Delivery",
+  "Transport", "Fuel", "Health", "Education", "Shopping", "Subscriptions",
+  "Utilities & phone", "Travel", "Leisure", "Bank fees & taxes",
+  "Credit card bill", "Investments", "Transfers", "Cash withdrawal", "Other",
+]
+
+# Rules run first, top to bottom; the first match wins. Patterns are regular
+# expressions matched against the statement description, case-insensitive.
+# When the AI gets something wrong, add a rule here and run `recategorize`.
+
+[[rules]]
+pattern = "SALARIO|PAGTO SALARIO|PROVENTOS"
+category = "Salary & income"
+
+[[rules]]
+pattern = "REND PAGO APLIC|RENDIMENTO|APLIC AUT|RES APLIC|CDB|TESOURO"
+category = "Investments"
+
+[[rules]]
+pattern = "FATURA|ITAU CARTAO|ITAUCARD|PAG FAT"
+category = "Credit card bill"
+
+[[rules]]
+pattern = "^TAR |TARIFA|IOF|JUROS|ENCARGOS"
+category = "Bank fees & taxes"
+
+[[rules]]
+pattern = "SAQUE"
+category = "Cash withdrawal"
+
+[[rules]]
+pattern = "IFOOD|RAPPI|ZE DELIVERY|AIQFOME"
+category = "Delivery"
+
+[[rules]]
+pattern = "UBER|99 ?APP|99POP|99 TAXI|METRO|SPTRANS|BILHETE UNICO"
+category = "Transport"
+
+[[rules]]
+pattern = "POSTO|SHELL|IPIRANGA|PETROBRAS|BR MANIA"
+category = "Fuel"
+
+[[rules]]
+pattern = "NETFLIX|SPOTIFY|DISNEY|PRIME VIDEO|AMAZON PRIME|HBO|MAX\\b|YOUTUBE|APPLE\\.COM|GOOGLE ONE"
+category = "Subscriptions"
+
+[[rules]]
+pattern = "DROGA|DROGASIL|RAIA|PAGUE MENOS|FARMACIA|UNIMED|AMIL|HAPVIDA"
+category = "Health"
+
+[[rules]]
+pattern = "CARREFOUR|PAO DE ACUCAR|ASSAI|ATACADAO|EXTRA|SUPERMERC|MERCADO|HORTIFRUTI"
+category = "Groceries"
+
+[[rules]]
+pattern = "ENEL|LIGHT|CEMIG|COPEL|SABESP|COMGAS|NATURGY|VIVO|CLARO|TIM\\b|OI\\b"
+category = "Utilities & phone"
+
+[[rules]]
+pattern = "ALUGUEL|CONDOMINIO|IPTU"
+category = "Housing"

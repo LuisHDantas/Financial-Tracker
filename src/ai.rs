@@ -6,9 +6,10 @@
 //! we treat it as no answer).
 //!
 //! The schema only limits *what* the model may answer; it doesn't tell the model
-//! what the options are. So the prompt also lists the categories and shows the
-//! examples from rules.toml. Without them a small model picks almost blindly
-//! (2 of 26 right in our benchmark, against 13 of 26 with them).
+//! what the options are. So the prompt also lists the categories with a one-line
+//! meaning each and shows the examples from rules.toml. `finance bench` measures
+//! the effect: on the test cases the AI alone went from 46% right (categories and
+//! examples, no meanings) to 68% (with meanings).
 
 use std::time::Duration;
 

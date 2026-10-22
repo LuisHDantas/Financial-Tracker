@@ -40,17 +40,29 @@ Other = "Pix to other people, cash withdrawals, anything that fits nothing else"
 # bill. The summary leaves it out of income and spending; card purchases are counted
 # one by one when you import the card statement.
 
+# Moving money between your own accounts. First, so "TRANSF CC PARA POUPANCA"
+# isn't taken for an investment.
 [[rules]]
-pattern = "SALARIO|REMUNERACAO|PROVENTOS|\\bFERIAS\\b|\\bINSS\\b"
-category = "Income"
+pattern = "MESMA TITULAR|CONTA PROPRIA|PARA POUPANCA"
+category = "Transfers"
 
 [[rules]]
-pattern = "REND PAGO APLIC|RENDIMENTO|APLIC AUT|APLICACAO|RES APLIC|RESGATE|\\bCDB\\b|\\bLCI\\b|\\bLCA\\b|TESOURO"
+pattern = "SALARIO|REMUNERACAO|PROVENTOS|\\bFERIAS\\b|\\bINSS\\b|REEMBOLSO|HONORARIOS"
+category = "Income"
+
+# Before Fees, so "JUROS POUPANCA" (interest you earn) isn't taken for a bank charge.
+[[rules]]
+pattern = "REND PAGO APLIC|RENDIMENTO|APLIC AUT|APLICACAO|RES APLIC|RESGATE|\\bCDB\\b|\\bLCI\\b|\\bLCA\\b|TESOURO|POUPANCA|PREVIDENCIA|CORRETORA|\\bDTVM\\b|INVEST"
 category = "Investments"
 
 [[rules]]
-pattern = "^TAR\\b|TARIFA|\\bIOF\\b|JUROS|\\bMORA\\b|ENCARGOS|ANUIDADE"
+pattern = "^TAR\\b|TARIFA|\\bIOF\\b|JUROS|\\bMORA\\b|ENCARGOS|ANUIDADE|CESTA DE SERVICOS|TAXA SAQUE|MANUTENCAO CONTA"
 category = "Fees"
+
+# Cash withdrawals. After Fees, so "TAXA SAQUE" stays a fee.
+[[rules]]
+pattern = "SAQUE"
+category = "Other"
 
 # Paying the card bill from checking, and the matching credit on the card statement.
 [[rules]]
@@ -59,53 +71,53 @@ category = "Transfers"
 
 # Before Restaurants and Transport, so "IFOOD *RESTAURANTE" and "UBER EATS" land here.
 [[rules]]
-pattern = "IFOOD|\\bIFD\\b|RAPPI|ZE DELIVERY|AIQFOME|UBER ?EATS"
+pattern = "IFOOD|\\bIFD\\b|RAPPI|DELIVERY|AIQFOME|UBER ?EATS|99 ?FOOD"
 category = "Delivery"
 
 # Before Shopping, so "AMAZON PRIME" lands here and plain "AMAZON" in Shopping.
 [[rules]]
-pattern = "NETFLIX|SPOTIFY|DISNEY|PRIME VIDEO|AMAZON ?PRIME|\\bHBO|\\bMAX\\b|YOUTUBE|APPLE\\.COM|GOOGLE ONE|DEEZER|GLOBOPLAY|PARAMOUNT"
+pattern = "NETFLIX|SPOTIFY|DISNEY|PRIME VIDEO|AMAZON ?PRIME|\\bHBO|\\bMAX\\b|YOUTUBE|APPLE\\.COM|GOOGLE ONE|DEEZER|GLOBOPLAY|PARAMOUNT|XBOX|GAME PASS|ADOBE|CANVA|DROPBOX"
 category = "Subscriptions"
 
 [[rules]]
-pattern = "UBER|\\b99 ?(APP|POP|TAXI)\\b|\\bMETRO\\b|SPTRANS|BILHETE UNICO|ESTACIONAMENTO|SEM PARAR|CONECTCAR|VELOE|POSTO|\\bSHELL\\b|IPIRANGA|PETROBRAS|BR MANIA"
+pattern = "UBER|\\b99 ?(APP|POP|TAXI)\\b|\\bMETRO\\b|SPTRANS|BILHETE UNICO|ESTACIONAMENTO|ESTAPAR|ZONA AZUL|SEM PARAR|CONECTCAR|VELOE|PEDAGIO|POSTO|\\bSHELL\\b|IPIRANGA|PETROBRAS|BR MANIA|CABIFY|\\bTAXI|OFICINA|AUTO ?PECAS|DETRAN|SEGURO AUTO"
 category = "Transport"
 
 [[rules]]
-pattern = "DROGA|\\bRAIA\\b|PAGUE MENOS|FARMACIA|UNIMED|\\bAMIL\\b|HAPVIDA|LABORATORIO|HOSPITAL|CLINICA"
+pattern = "DROGA|\\bRAIA\\b|PAGUE MENOS|FARMA|UNIMED|\\bAMIL\\b|HAPVIDA|LABORATORIO|HOSPITAL|CLINICA|MEDICINA|ODONTO|PSICOLOG|DENTIST|NUTRICION|OTICA"
 category = "Health"
 
-# Before Groceries, so "MERCADO LIVRE" isn't caught by "MERCADO".
+# Before Groceries, so "MERCADO LIVRE" and "MERCADOPAGO" aren't caught by "MERCADO".
 [[rules]]
-pattern = "MERCADO ?LIVRE|AMAZON|SHOPEE|ALIEXPRESS|MAGALU|MAGAZINE LUIZA|AMERICANAS|SHEIN|RENNER|RIACHUELO"
+pattern = "MERCADO ?LIVRE|MERCADO ?PAGO|AMAZON|SHOPEE|ALIEXPRESS|MAGALU|MAGAZINE LUIZA|AMERICANAS|SHEIN|RENNER|RIACHUELO|CASAS BAHIA|TOK ?STOK|LEROY MERLIN|DECATHLON|KABUM|\\bPETZ\\b|PET ?SHOP"
 category = "Shopping"
 
 [[rules]]
-pattern = "CARREFOUR|PAO DE ACUCAR|ASSAI|ATACADAO|\\bEXTRA\\b|SUPERMERC|MERCADO|HORTIFRUTI|PADARIA|ACOUGUE"
+pattern = "CARREFOUR|PAO DE ACUCAR|ASSAI|ATACADAO|\\bEXTRA\\b|SUPERMERC|HIPERMERC|MERCADO|MERCADINHO|HORTIFRUTI|SACOLAO|QUITANDA|PADARIA|ACOUGUE"
 category = "Groceries"
 
 [[rules]]
-pattern = "RESTAURANTE|LANCHONETE|PIZZARIA|CHURRASCARIA|MC ?DONALDS|BURGER KING|STARBUCKS|OUTBACK"
+pattern = "RESTAURANTE|LANCHONETE|PIZZARIA|CHURRASCARIA|MC ?DONALDS|BURGER KING|STARBUCKS|OUTBACK|HAMBURG|SORVET|\\bACAI\\b|\\bBAR\\b|\\bCAFE\\b|CANTINA|ESPETINHO|HABIBS"
 category = "Restaurants"
 
 [[rules]]
-pattern = "ENEL|\\bLIGHT\\b|CEMIG|COPEL|SABESP|COMGAS|NATURGY|\\bVIVO\\b|\\bCLARO\\b|\\bTIM\\b|\\bOI\\b"
+pattern = "ENEL|\\bLIGHT\\b|ELETROPAULO|CEMIG|COPEL|SABESP|CEDAE|COPASA|COMGAS|GAS NATURAL|ULTRAGAZ|NATURGY|\\bVIVO\\b|\\bCLARO\\b|\\bTIM\\b|\\bOI\\b|\\bNET\\b|TELECOM"
 category = "Utilities"
 
 [[rules]]
-pattern = "ALUGUEL|CONDOMINIO|IPTU|QUINTOANDAR"
+pattern = "ALUGUEL|CONDOMIN|IPTU|QUINTOANDAR|IMOBILIARIA|\\bLOFT\\b"
 category = "Housing"
 
 [[rules]]
-pattern = "LATAM|GOL LINHAS|AZUL LINHAS|VOEAZUL|AIRBNB|BOOKING|HOTEL|DECOLAR"
+pattern = "LATAM|GOL LINHAS|AZUL LINHAS|VOEAZUL|AIRBNB|BOOKING|HOTEL|HOTEIS|DECOLAR|MILHAS|BUSER|UNIDAS"
 category = "Travel"
 
 [[rules]]
-pattern = "ESCOLA|COLEGIO|FACULDADE|UNIVERSIDADE|UDEMY|ALURA|COURSERA"
+pattern = "ESCOLA|COLEGIO|FACULDADE|UNIVERSIDADE|UDEMY|ALURA|COURSERA|MENSALIDADE|CURSO|CURSINHO|SENAC|CULTURA INGLESA"
 category = "Education"
 
 [[rules]]
-pattern = "CINEMA|CINEMARK|INGRESSO|SYMPLA|STEAM"
+pattern = "CINEMA|CINEMARK|INGRESSO|SYMPLA|STEAM|TEATRO|PLAYSTATION|EVENTIM|BETO CARRERO"
 category = "Leisure"
 
 # Examples shown to the AI with every question, so it sees what each category

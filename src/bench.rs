@@ -70,18 +70,31 @@ fn report_ai(rules: &Rules, ai: &Ollama, cases: &[(&Case, Money)]) -> Result<()>
     ai.categorize("PADARIA", Money(-100), rules)?; // load the model before timing
     let start = Instant::now();
     let mut correct = 0;
+    // What the app would do: the rule's answer when one matches, otherwise the AI's.
+    let mut pipeline_correct = 0;
     let mut confusions: BTreeMap<(String, String), Vec<&str>> = BTreeMap::new();
     for (case, amount) in cases {
         let got = ai.categorize(&case.description, *amount, rules)?.unwrap_or_else(|| "(no answer)".into());
+        let final_answer = rules.category_for(&case.description).unwrap_or(&got);
+        if final_answer == case.category {
+            pipeline_correct += 1;
+        }
         if got == case.category {
             correct += 1;
         } else {
             confusions.entry((case.category.clone(), got)).or_default().push(&case.description);
         }
     }
-    let per_call = start.elapsed().as_secs_f64() / cases.len().max(1) as f64;
-    let percent = correct as f64 / cases.len().max(1) as f64 * 100.0;
-    println!("AI ({}): {correct}/{} right ({percent:.0}%), {per_call:.1} s per call", ai.model, cases.len());
+    let n = cases.len().max(1);
+    let per_call = start.elapsed().as_secs_f64() / n as f64;
+    let percent = |k: usize| k as f64 / n as f64 * 100.0;
+    println!(
+        "AI ({}): {correct}/{} right ({:.0}%), {per_call:.1} s per call",
+        ai.model,
+        cases.len(),
+        percent(correct)
+    );
+    println!("rules then AI: {pipeline_correct}/{} right ({:.0}%)", cases.len(), percent(pipeline_correct));
     for ((want, got), descriptions) in &confusions {
         println!("   {want} -> {got}: {}", descriptions.join(", "));
     }

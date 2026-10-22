@@ -2,7 +2,8 @@
 FROM rust:1-slim-bookworm AS dev
 # Must match the duckdb crate version in Cargo.toml (1.10506.x = DuckDB 1.5.6).
 ARG DUCKDB_VERSION=1.5.6
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl unzip \
+# poppler-utils gives pdftotext, used to read PDF statements.
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl unzip poppler-utils \
     && rm -rf /var/lib/apt/lists/* \
     && curl -fsSL -o /tmp/libduckdb.zip \
        "https://github.com/duckdb/duckdb/releases/download/v${DUCKDB_VERSION}/libduckdb-linux-amd64.zip" \
@@ -25,15 +26,16 @@ COPY Cargo.toml Cargo.lock ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs && cargo build --release --locked && rm -rf src
 COPY src ./src
 COPY static ./static
-COPY rules.toml ./
+COPY rules.toml parsers.toml ./
 RUN touch src/main.rs && cargo build --release --locked
 
-# app: just the binary and libduckdb.
+# app: the binary, libduckdb and pdftotext.
 FROM debian:bookworm-slim AS app
+RUN apt-get update && apt-get install -y --no-install-recommends poppler-utils && rm -rf /var/lib/apt/lists/*
 COPY --from=dev /usr/local/lib/libduckdb.so /usr/local/lib/
 RUN ldconfig
 WORKDIR /app
 COPY --from=build /src/target/release/finance /usr/local/bin/finance
-COPY rules.toml ./
+COPY rules.toml parsers.toml ./
 
 ENTRYPOINT ["finance"]

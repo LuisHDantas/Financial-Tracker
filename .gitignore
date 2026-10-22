@@ -4,6 +4,8 @@ data/
 *.duckdb.wal
 *.ofx
 *.OFX
+*.pdf
+*.PDF
 *.csv
 .env
 

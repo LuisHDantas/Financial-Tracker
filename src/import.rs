@@ -1,4 +1,5 @@
-//! Importing OFX files into the event log.
+//! Importing statement files (OFX, or PDF read with the layouts in parsers.toml)
+//! into the event log.
 //!
 //! A file whose exact bytes were imported before is skipped. Otherwise every
 //! transaction not seen before becomes a `TransactionObserved` event, followed by
@@ -10,13 +11,14 @@ use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use duckdb::Connection;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::events::Event;
 use crate::ofx::{self, ParsedTransaction, Statement};
+use crate::pdf::{self, Layouts};
 use crate::store;
 
 /// What happened to one file.
@@ -49,22 +51,27 @@ impl fmt::Display for FileResult {
     }
 }
 
-/// Imports one .ofx file, or every .ofx file in a folder (none is not an error).
-pub fn run(con: &Connection, target: &Path) -> Result<Vec<FileResult>> {
-    ofx_files(target)?
+/// Imports one .ofx/.pdf file, or every such file in a folder (none is not an error).
+pub fn run(con: &Connection, target: &Path, layouts: &Layouts) -> Result<Vec<FileResult>> {
+    statement_files(target)?
         .iter()
-        .map(|file| import_file(con, file).with_context(|| format!("importing {}", file.display())))
+        .map(|file| import_file(con, file, layouts).with_context(|| format!("importing {}", file.display())))
         .collect()
 }
 
-fn ofx_files(target: &Path) -> Result<Vec<PathBuf>> {
+fn is_pdf(path: &Path) -> bool {
+    path.extension().is_some_and(|e| e.eq_ignore_ascii_case("pdf"))
+}
+
+fn statement_files(target: &Path) -> Result<Vec<PathBuf>> {
     if !target.is_dir() {
         return Ok(vec![target.to_path_buf()]);
     }
     let mut files = Vec::new();
     for entry in fs::read_dir(target).with_context(|| format!("reading {}", target.display()))? {
         let path = entry?.path();
-        if path.is_file() && path.extension().is_some_and(|e| e.eq_ignore_ascii_case("ofx")) {
+        let known = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("ofx")) || is_pdf(&path);
+        if path.is_file() && known {
             files.push(path);
         }
     }
@@ -72,7 +79,26 @@ fn ofx_files(target: &Path) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
-fn import_file(con: &Connection, path: &Path) -> Result<FileResult> {
+/// Reads a statement: OFX directly, PDF through the best-fitting layout.
+fn read_statement(path: &Path, bytes: &[u8], layouts: &Layouts) -> Result<Statement> {
+    if !is_pdf(path) {
+        return Ok(ofx::parse(bytes));
+    }
+    let text = pdf::extract_text(path)?;
+    let Some(layout) = layouts.detect(&text) else {
+        bail!("this PDF doesn't look like any layout in parsers.toml; run `./finance inspect` on it");
+    };
+    let statement = pdf::parse(&text, layout);
+    if statement.transactions.is_empty() {
+        bail!(
+            "no transactions found with the {} layout; run `./finance inspect` on it and adjust parsers.toml",
+            layout.name
+        );
+    }
+    Ok(statement)
+}
+
+fn import_file(con: &Connection, path: &Path, layouts: &Layouts) -> Result<FileResult> {
     let bytes = fs::read(path).with_context(|| format!("reading {}", path.display()))?;
     let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     let sha256 = format!("{:x}", Sha256::digest(&bytes));
@@ -87,7 +113,7 @@ fn import_file(con: &Connection, path: &Path) -> Result<FileResult> {
         });
     }
 
-    let statement = ofx::parse(&bytes);
+    let statement = read_statement(path, &bytes, layouts)?;
     let added = store::in_transaction(con, |con| record_statement(con, &statement, &name, &sha256))?;
     Ok(FileResult {
         file: name,

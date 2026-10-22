@@ -103,7 +103,7 @@ const state = { month: null };
 function emptyState() {
   return `<div class="card empty">
     <p><b>No transactions yet.</b></p>
-    <p>Save your Itaú statements (.ofx) into <code>data/inbox</code>, then go to <a href="#/import">Import</a>.</p>
+    <p>Save your Itaú statements (.pdf or .ofx) into <code>data/inbox</code>, then go to <a href="#/import">Import</a>.</p>
   </div>`;
 }
 
@@ -296,7 +296,7 @@ async function importView(app) {
   app.innerHTML = `
     <div class="toolbar"><h1>Import</h1></div>
     <section class="card">
-      <p>Save Itaú statements (<b>.ofx</b>, “OFX / Money 2000”) into the <code>data/inbox</code> folder, then press Import.
+      <p>Save Itaú statements (<b>.pdf</b>, or <b>.ofx</b> “OFX / Money 2000”) into the <code>data/inbox</code> folder, then press Import.
         A file that was already imported is skipped, and so is any transaction already here.</p>
       <p class="muted small">From Windows Explorer the folder is
         <code>\\\\wsl$\\Ubuntu\\home\\…\\projects\\Financial-Tracker\\data\\inbox</code></p>
@@ -322,7 +322,7 @@ async function importView(app) {
 }
 
 function importResult({ files, categorized: c }) {
-  if (!files.length) return `<p class="muted">No .ofx files in data/inbox.</p>`;
+  if (!files.length) return `<p class="muted">No .pdf or .ofx files in data/inbox.</p>`;
   const lines = files.map((f) =>
     f.already_imported
       ? `<li><b>${escapeHtml(f.file)}</b> <span class="muted">already imported, skipped</span></li>`

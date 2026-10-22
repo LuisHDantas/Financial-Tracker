@@ -7,7 +7,7 @@
 //! How the code is laid out:
 //! - `main.rs`: the command line (clap) and nothing else
 //! - `import.rs`, `categorize.rs`, `summary.rs`: one file per command's work
-//! - `ofx.rs`: reading statement files
+//! - `ofx.rs`, `pdf.rs`: reading statement files (PDF layouts are in parsers.toml)
 //! - `rules.rs`, `ai.rs`: the two ways of choosing a category
 //! - `events.rs`, `store.rs`: the event log and the tables built from it
 //! - `money.rs`: amounts in cents
@@ -21,6 +21,7 @@ mod events;
 mod import;
 mod money;
 mod ofx;
+mod pdf;
 mod rules;
 mod store;
 mod summary;
@@ -29,17 +30,18 @@ mod web;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Args, Parser, Subcommand};
 
 use crate::ai::Ollama;
 use crate::categorize::Scope;
+use crate::pdf::Layouts;
 use crate::rules::Rules;
 
 #[derive(Parser)]
 #[command(
     name = "finance",
-    about = "Personal finance tracker: Itaú OFX statements, an event log in DuckDB, local AI categorization"
+    about = "Personal finance tracker: Itaú statements (OFX or PDF), an event log in DuckDB, local AI categorization"
 )]
 struct Cli {
     /// Folder holding finance.duckdb
@@ -48,13 +50,16 @@ struct Cli {
     /// Categories and rules file
     #[arg(long, env = "FINANCE_RULES", default_value = "rules.toml", global = true)]
     rules: PathBuf,
+    /// PDF layouts file
+    #[arg(long, env = "FINANCE_PARSERS", default_value = "parsers.toml", global = true)]
+    parsers: PathBuf,
     #[command(subcommand)]
     command: Command,
 }
 
 #[derive(Subcommand)]
 enum Command {
-    /// Import an .ofx file or a folder of them
+    /// Import an .ofx/.pdf file or a folder of them
     Import {
         path: PathBuf,
         #[command(flatten)]
@@ -90,6 +95,8 @@ enum Command {
         #[command(flatten)]
         ai: AiArgs,
     },
+    /// Show a statement's line shapes (no content) to adjust parsers.toml
+    Inspect { file: PathBuf },
     /// Serve the web page (overview, transactions, review, import)
     Serve {
         #[arg(long, default_value = "0.0.0.0:8080")]
@@ -123,11 +130,26 @@ fn main() -> Result<()> {
         // Doesn't touch the database.
         return bench::run(&Rules::load(&cli.rules)?, ai.client().as_ref(), file, split.as_deref());
     }
+    if let Command::Inspect { file } = &cli.command {
+        let layouts = Layouts::load(&cli.parsers)?;
+        let is_pdf = file.extension().is_some_and(|e| e.eq_ignore_ascii_case("pdf"));
+        let text = if is_pdf {
+            pdf::extract_text(file)?
+        } else {
+            let bytes = std::fs::read(file).with_context(|| format!("reading {}", file.display()))?;
+            String::from_utf8_lossy(&bytes).into_owned()
+        };
+        print!("{}", pdf::inspect(&text, &layouts));
+        return Ok(());
+    }
     if let Command::Serve { addr, ai } = &cli.command {
-        Rules::load(&cli.rules)?; // fail at start on a bad rules file, not on the first page load
+        // Fail at start on a bad rules or parsers file, not on the first page load.
+        Rules::load(&cli.rules)?;
+        Layouts::load(&cli.parsers)?;
         let config = web::Config {
             data_dir: cli.data_dir.clone(),
             rules_path: cli.rules.clone(),
+            parsers_path: cli.parsers.clone(),
             ollama: (!ai.no_ai).then(|| (ai.ollama_host.clone(), ai.model.clone())),
         };
         return web::serve(*addr, config);
@@ -135,10 +157,12 @@ fn main() -> Result<()> {
     let con = store::open(&cli.data_dir)?;
     match cli.command {
         Command::Import { path, ai } => {
-            let rules = Rules::load(&cli.rules)?; // fail on a bad rules file before writing anything
-            let files = import::run(&con, &path)?;
+            // Fail on a bad rules or parsers file before writing anything.
+            let rules = Rules::load(&cli.rules)?;
+            let layouts = Layouts::load(&cli.parsers)?;
+            let files = import::run(&con, &path, &layouts)?;
             if files.is_empty() {
-                println!("No .ofx files in {}.", path.display());
+                println!("No .ofx or .pdf files in {}.", path.display());
             }
             for file in files {
                 println!("{file}");
@@ -159,7 +183,9 @@ fn main() -> Result<()> {
             let n = store::rebuild(&con)?;
             println!("Replayed {n} events into the statements and transactions tables.");
         }
-        Command::Bench { .. } | Command::Serve { .. } => unreachable!("handled above"),
+        Command::Bench { .. } | Command::Inspect { .. } | Command::Serve { .. } => {
+            unreachable!("handled above")
+        }
     }
     Ok(())
 }

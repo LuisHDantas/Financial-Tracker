@@ -28,6 +28,7 @@ use crate::categorize::{self, Scope, Tally};
 use crate::events::Event;
 use crate::import::{self, FileResult};
 use crate::money::Money;
+use crate::pdf::Layouts;
 use crate::rules::{Rules, TRANSFERS};
 use crate::store::{self, CategorySpending, TransactionFilter, TransactionView};
 
@@ -44,6 +45,7 @@ const TREND_MONTHS: i64 = 12;
 pub struct Config {
     pub data_dir: PathBuf,
     pub rules_path: PathBuf,
+    pub parsers_path: PathBuf,
     /// `None` when started with --no-ai.
     pub ollama: Option<(String, String)>, // (host, model)
 }
@@ -303,13 +305,14 @@ struct ImportResponse {
     categorized: Tally,
 }
 
-/// Imports everything in data/inbox and categorizes what's new, like
+/// Imports everything (.ofx, .pdf) in data/inbox and categorizes what's new, like
 /// `finance import data/inbox`.
 async fn import_inbox(State(state): State<AppState>) -> ApiResult<ImportResponse> {
     with_db(&state, |con, rules, config| {
         let inbox = config.data_dir.join("inbox");
         std::fs::create_dir_all(&inbox).with_context(|| format!("creating {}", inbox.display()))?;
-        let files = import::run(con, &inbox)?;
+        let layouts = Layouts::load(&config.parsers_path)?;
+        let files = import::run(con, &inbox, &layouts)?;
         let ai = config.ollama.as_ref().map(|(host, model)| Ollama::new(host, model));
         let categorized = categorize::run(con, rules, ai, Scope::Uncategorized, true)?;
         Ok(ImportResponse { files, categorized })
@@ -351,7 +354,13 @@ category = "Income"
         std::fs::create_dir_all(dir.join("inbox")).unwrap();
         std::fs::write(dir.join("rules.toml"), RULES).unwrap();
         std::fs::write(dir.join("inbox/test.ofx"), OFX).unwrap();
-        let config = Config { data_dir: dir.clone(), rules_path: dir.join("rules.toml"), ollama: None };
+        std::fs::write(dir.join("parsers.toml"), include_str!("../parsers.toml")).unwrap();
+        let config = Config {
+            data_dir: dir.clone(),
+            rules_path: dir.join("rules.toml"),
+            parsers_path: dir.join("parsers.toml"),
+            ollama: None,
+        };
         (router(config), dir)
     }
 

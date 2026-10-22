@@ -32,11 +32,42 @@ page. Run it again after a restart; it's quick once everything is downloaded.
 
 ## Monthly use
 
-1. Itaú internet banking → Conta corrente → Extrato por período → "Salvar em outros
-   formatos" → **OFX / Money 2000**. Do the same for the credit card statement if
-   it offers OFX, so card purchases are counted one by one.
+1. Download the checking statement and the credit card bill from Itaú, as PDF or
+   OFX (internet banking → Conta corrente → Extrato → "Salvar em outros formatos" →
+   **OFX / Money 2000**; OFX is the more reliable of the two when it's offered).
 2. Save the files into `data/inbox/` (from Windows: `\\wsl$\Ubuntu\home\<user>\projects\Financial-Tracker\data\inbox`).
 3. Press **Import** on the page, then go through **Review**.
+
+Don't import the same period as both PDF and OFX: PDFs carry no transaction ids,
+so the two can't be matched and you'd get each transaction twice.
+
+## Importing Itaú PDFs
+
+PDF statements are read with `pdftotext` (inside Docker) and the patterns in
+`parsers.toml`: one layout for the checking statement (`itau_checking`), one for the
+card bill (`itau_card`). The app picks the layout whose keywords appear most. Card
+purchases count as money out and the bill payment as a transfer; dates without a
+year get it from the bill's due date; balance lines, totals and "próximas faturas"
+(future installments) are skipped. Two identical rows (two R$ 5,00 coffees on one
+day) stay two transactions, and importing the same PDF again adds nothing.
+
+These layouts were written from what Itaú statements usually look like and tested
+with made-up PDFs, so a real one may need a small change in `parsers.toml`.
+
+### If a PDF doesn't import
+
+Run:
+
+```bash
+./finance inspect data/inbox/your-file.pdf
+```
+
+It prints only the *shape* of each line: every letter becomes `a`/`A` and every
+digit `9`, so `05/10 IFOOD *RESTAURANTE 58,90` shows as
+`99/99 AAAAA *AAAAAAAAAAA 99,99`. No names, places or amounts. It also marks which
+lines would be read as transactions (✓) and where reading stops (■). Check the
+output yourself first, and share a few lines only if you want to; they're enough to
+adjust `parsers.toml`.
 
 The same from the command line:
 

@@ -26,9 +26,11 @@ services:
       OLLAMA_MODEL: qwen2.5:3b
       FINANCE_DATA_DIR: /app/data
       FINANCE_RULES: /app/rules.toml
+      FINANCE_PARSERS: /app/parsers.toml
     volumes: &app-volumes
       - ./data:/app/data              # statements and the DuckDB file, never committed
       - ./rules.toml:/app/rules.toml  # edit rules without rebuilding
+      - ./parsers.toml:/app/parsers.toml
     profiles: [cli]                   # only for `docker compose run app ...`, not `up`
 
   # The web page. Published on this PC only (127.0.0.1), not on the network.

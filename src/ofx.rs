@@ -67,8 +67,9 @@ fn parse_transaction(block: &str, account: &str) -> Option<ParsedTransaction> {
     })
 }
 
-/// First 24 hex characters of sha256("account|fitid|date|cents|memo").
-fn transaction_id(account: &str, fitid: &str, date: &str, amount: Money, memo: &str) -> String {
+/// First 24 hex characters of sha256("account|fitid|date|cents|memo"). Also used
+/// for PDFs, where the "fitid" is a count of identical rows.
+pub(crate) fn transaction_id(account: &str, fitid: &str, date: &str, amount: Money, memo: &str) -> String {
     let key = format!("{account}|{fitid}|{date}|{}|{memo}", amount.0);
     format!("{:x}", Sha256::digest(key.as_bytes()))[..24].to_string()
 }

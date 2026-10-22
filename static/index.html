@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Finanças</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%232563eb'/><text x='16' y='22' font-size='16' text-anchor='middle' fill='white' font-family='sans-serif'>R$</text></svg>">
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><span class="logo">R$</span> Finanças</div>
+    <nav>
+      <a href="#/overview" data-view="overview">Overview</a>
+      <a href="#/transactions" data-view="transactions">Transactions</a>
+      <a href="#/review" data-view="review">Review <span id="review-count" class="badge" hidden></span></a>
+      <a href="#/import" data-view="import">Import</a>
+    </nav>
+  </header>
+  <main id="app"></main>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -36,8 +36,11 @@ pub enum Event {
         trn_type: Option<String>,
         source_file: String,
     },
-    /// A transaction got a new category (or a new source for it).
+    /// A transaction got a new category (or a new source for it) from a rule, the AI or neither.
     TransactionCategorized { id: String, category: String, source: CategorySource, model: Option<String> },
+    /// You chose a transaction's category yourself (in the web page). From then on
+    /// rules and the AI leave it alone.
+    CategoryCorrected { id: String, category: String },
 }
 
 impl Event {
@@ -47,6 +50,7 @@ impl Event {
             Self::StatementImported { .. } => "StatementImported",
             Self::TransactionObserved { .. } => "TransactionObserved",
             Self::TransactionCategorized { .. } => "TransactionCategorized",
+            Self::CategoryCorrected { .. } => "CategoryCorrected",
         }
     }
 }
@@ -72,6 +76,8 @@ impl AccountType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum CategorySource {
+    /// You chose it (a `CategoryCorrected` event). Beats rules and the AI.
+    Manual,
     /// A rule in rules.toml matched.
     Rule,
     /// The local model picked it.
@@ -83,6 +89,7 @@ pub enum CategorySource {
 impl CategorySource {
     pub fn as_str(self) -> &'static str {
         match self {
+            Self::Manual => "manual",
             Self::Rule => "rule",
             Self::Ai => "ai",
             Self::None => "none",
@@ -92,6 +99,7 @@ impl CategorySource {
     /// The reverse of `as_str`, for reading the `category_source` column.
     pub fn parse(text: &str) -> Option<Self> {
         match text {
+            "manual" => Some(Self::Manual),
             "rule" => Some(Self::Rule),
             "ai" => Some(Self::Ai),
             "none" => Some(Self::None),
@@ -138,7 +146,8 @@ mod tests {
 
     #[test]
     fn category_source_parses_its_own_names() {
-        for source in [CategorySource::Rule, CategorySource::Ai, CategorySource::None] {
+        for source in [CategorySource::Manual, CategorySource::Rule, CategorySource::Ai, CategorySource::None]
+        {
             assert_eq!(CategorySource::parse(source.as_str()), Some(source));
         }
         assert_eq!(CategorySource::parse("other"), None);

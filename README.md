@@ -14,9 +14,21 @@ From WSL Ubuntu, in the repo folder:
 ./start.sh
 ```
 
-It starts the local AI, downloads the model the first time (~1.9 GB, kept in a
-Docker volume), builds the app and creates `data/inbox/`. Run it again after a
-restart; it's quick once everything is downloaded.
+then open **http://localhost:8080**. It starts the local AI, downloads the model the
+first time (~1.9 GB, kept in a Docker volume), builds the app and starts the web
+page. Run it again after a restart; it's quick once everything is downloaded.
+`docker compose down` stops everything. The page is only reachable from this PC.
+
+## The web page
+
+- **Overview**: a month's money in, out, net and transfers; spending by category
+  (click a bar to see its transactions); money in and out over the last 12 months.
+- **Transactions**: filter by month, category and account, search descriptions.
+  Click a category to change it.
+- **Review**: what the AI categorized, or nothing could. Confirm the guess or pick
+  another category. Your choice is final: rules and the AI never overwrite it, it
+  survives `rebuild`, and it's reused for similar descriptions.
+- **Import**: imports everything in `data/inbox/`.
 
 ## Monthly use
 
@@ -24,7 +36,9 @@ restart; it's quick once everything is downloaded.
    formatos" → **OFX / Money 2000**. Do the same for the credit card statement if
    it offers OFX, so card purchases are counted one by one.
 2. Save the files into `data/inbox/` (from Windows: `\\wsl$\Ubuntu\home\<user>\projects\Financial-Tracker\data\inbox`).
-3. Run:
+3. Press **Import** on the page, then go through **Review**.
+
+The same from the command line:
 
 ```bash
 ./finance import data/inbox
@@ -32,7 +46,7 @@ restart; it's quick once everything is downloaded.
 ```
 
 `./finance` runs the app in Docker (`docker compose run --rm app ...`); `./finance --help`
-lists every command.
+lists every command. It works while the web page is running.
 
 Importing the same file twice is safe: a file already imported is skipped, and so
 is any transaction already in the database.
@@ -66,6 +80,7 @@ The source of truth is an append-only event log, the `events` table:
 - `StatementImported`: a file was read (its sha256 stops it being imported twice)
 - `TransactionObserved`: a transaction was seen for the first time
 - `TransactionCategorized`: a transaction got a new category, from a rule, the AI or neither
+- `CategoryCorrected`: you chose a transaction's category on the web page
 
 The `statements` and `transactions` tables are projections of the log, updated in
 the same database transaction as each event. They can be thrown away and rebuilt:

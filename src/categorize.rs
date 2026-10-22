@@ -1,6 +1,7 @@
 //! Choosing a category for each transaction.
 //!
-//! For each transaction, in order: the first matching rule in rules.toml; else the
+//! A category you chose yourself (source `manual`) is never touched. For every
+//! other transaction, in order: the first matching rule in rules.toml; else the
 //! AI (reusing an earlier answer for a similar memo when there is one); else an
 //! earlier AI answer for this same transaction, if the AI isn't available now;
 //! else the fallback category. A `TransactionCategorized` event is appended only
@@ -12,6 +13,7 @@ use std::fmt;
 
 use anyhow::Result;
 use duckdb::Connection;
+use serde::Serialize;
 
 use crate::ai::Ollama;
 use crate::events::{CategorySource, Event};
@@ -39,6 +41,10 @@ pub fn run(
     let mut categorizer = Categorizer { con, rules, ai, reuse_ai_answers, answered: HashMap::new() };
     let mut tally = Tally { total: rows.len(), ..Tally::default() };
     for row in &rows {
+        if row.category_source == Some(CategorySource::Manual) {
+            tally.manual += 1;
+            continue;
+        }
         let decision = categorizer.decide(row)?;
         tally.count(decision.source);
         if decision.differs_from(row) {
@@ -148,9 +154,11 @@ fn keep_earlier_ai_answer(row: &TransactionRow) -> Option<Decision> {
 }
 
 /// How many transactions each step categorized.
-#[derive(Default, Debug, PartialEq)]
+#[derive(Default, Debug, PartialEq, Serialize)]
 pub struct Tally {
     pub total: usize,
+    /// Set by you, left as they were.
+    pub manual: usize,
     pub by_rule: usize,
     pub by_ai: usize,
     pub left: usize,
@@ -160,6 +168,7 @@ pub struct Tally {
 impl Tally {
     fn count(&mut self, source: CategorySource) {
         match source {
+            CategorySource::Manual => self.manual += 1,
             CategorySource::Rule => self.by_rule += 1,
             CategorySource::Ai => self.by_ai += 1,
             CategorySource::None => self.left += 1,
@@ -169,10 +178,14 @@ impl Tally {
 
 impl fmt::Display for Tally {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Categorized {} transactions: ", self.total)?;
+        if self.manual > 0 {
+            write!(f, "{} set by you, ", self.manual)?;
+        }
         write!(
             f,
-            "Categorized {} transactions: {} by rules, {} by AI, {} left as '{FALLBACK}' ({} changed).",
-            self.total, self.by_rule, self.by_ai, self.left, self.changed
+            "{} by rules, {} by AI, {} left as '{FALLBACK}' ({} changed).",
+            self.by_rule, self.by_ai, self.left, self.changed
         )
     }
 }
@@ -230,7 +243,7 @@ category = "Delivery"
         let rules = Rules::parse(RULES).unwrap();
 
         let first = run(&con, &rules, None, Scope::Uncategorized, true).unwrap();
-        assert_eq!(first, Tally { total: 2, by_rule: 1, by_ai: 0, left: 1, changed: 2 });
+        assert_eq!(first, Tally { total: 2, manual: 0, by_rule: 1, by_ai: 0, left: 1, changed: 2 });
         assert_eq!(
             categories(&con),
             vec![
@@ -285,5 +298,19 @@ category = "Delivery"
         let tally = run(&con, &rules, None, Scope::All, true).unwrap();
         assert_eq!((tally.by_rule, tally.changed), (1, 1));
         assert_eq!(categories(&con), vec![("Shopping".into(), Some(CategorySource::Rule))]);
+    }
+
+    #[test]
+    fn your_choice_beats_rules() {
+        let con = setup(&["IFOOD *MERCADO"]);
+        store::in_transaction(&con, |con| {
+            store::append(con, &Event::CategoryCorrected { id: "t0".into(), category: "Shopping".into() })
+        })
+        .unwrap();
+        let rules = Rules::parse(RULES).unwrap(); // has a rule IFOOD -> Delivery
+        let tally = run(&con, &rules, None, Scope::All, true).unwrap();
+        assert_eq!((tally.manual, tally.by_rule, tally.changed), (1, 0, 0));
+        assert_eq!(categories(&con), vec![("Shopping".into(), Some(CategorySource::Manual))]);
+        assert!(tally.to_string().contains("1 set by you"));
     }
 }

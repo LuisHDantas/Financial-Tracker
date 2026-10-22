@@ -14,6 +14,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use duckdb::{params, Connection, Row};
+use serde::Serialize;
 
 use crate::events::{CategorySource, Event};
 use crate::money::Money;
@@ -50,7 +51,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     trn_type        VARCHAR,
     source_file     VARCHAR,
     category        VARCHAR,
-    category_source VARCHAR,                -- 'rule', 'ai' or 'none'
+    category_source VARCHAR,                -- 'manual', 'rule', 'ai' or 'none'
     model           VARCHAR,
     last_seq        BIGINT                  -- last event applied to this row
 );
@@ -73,6 +74,9 @@ VALUES (?, ?, ?, ?, CAST(? AS DATE), ?, ?, ?, ?, ?, ?)";
 const SET_CATEGORY: &str =
     "UPDATE transactions SET category = ?, category_source = ?, model = ?, last_seq = ? WHERE id = ?";
 
+const SET_MANUAL_CATEGORY: &str =
+    "UPDATE transactions SET category = ?, category_source = 'manual', model = NULL, last_seq = ? WHERE id = ?";
+
 const ALL_EVENTS: &str = "SELECT seq, payload FROM events ORDER BY seq";
 
 // --- Reads -------------------------------------------------------------------
@@ -87,8 +91,32 @@ FROM transactions
 WHERE NOT CAST(? AS BOOLEAN) OR category IS NULL OR category_source = 'none'
 ORDER BY date, id";
 
-const EARLIER_AI_ANSWER: &str =
-    "SELECT category FROM transactions WHERE memo_key = ? AND category_source = 'ai' LIMIT 1";
+/// Your own choice for a similar memo wins over an earlier AI answer.
+const EARLIER_AI_ANSWER: &str = "
+SELECT category FROM transactions
+WHERE memo_key = ? AND category_source IN ('manual', 'ai')
+ORDER BY category_source = 'manual' DESC, last_seq DESC
+LIMIT 1";
+
+const TRANSACTION_COLUMNS: &str =
+    "id, CAST(date AS VARCHAR), amount_cents, memo, account_type, category, category_source, model";
+
+/// Every filter is optional: NULL means "any".
+const LIST_TRANSACTIONS: &str = "
+WHERE (CAST($1 AS VARCHAR) IS NULL OR strftime(date, '%Y-%m') = $1)
+  AND (CAST($2 AS VARCHAR) IS NULL OR category = $2)
+  AND (CAST($3 AS VARCHAR) IS NULL OR account_type = $3)
+  AND (CAST($4 AS VARCHAR) IS NULL OR memo ILIKE '%' || $4 || '%')
+ORDER BY date DESC, id
+LIMIT $5";
+
+/// What the AI chose or nothing could categorize: the transactions worth a look.
+const REVIEW_QUEUE: &str = "
+WHERE category_source IN ('ai', 'none') OR category_source IS NULL
+ORDER BY date DESC, id
+LIMIT ?";
+
+const ONE_TRANSACTION: &str = "WHERE id = ?";
 
 const RECENT_MONTHS: &str =
     "SELECT DISTINCT strftime(date, '%Y-%m') AS m FROM transactions ORDER BY m DESC LIMIT ?";
@@ -207,6 +235,9 @@ fn apply(con: &Connection, seq: i64, event: &Event) -> Result<()> {
         Event::TransactionCategorized { id, category, source, model } => {
             con.execute(SET_CATEGORY, params![category, source.as_str(), model, seq, id])?;
         }
+        Event::CategoryCorrected { id, category } => {
+            con.execute(SET_MANUAL_CATEGORY, params![category, seq, id])?;
+        }
     }
     Ok(())
 }
@@ -288,7 +319,8 @@ pub fn transactions_to_categorize(con: &Connection, only_uncategorized: bool) ->
     Ok(rows)
 }
 
-/// An earlier AI answer for a similar memo, reused instead of asking the model again.
+/// An earlier answer for a similar memo (yours, or else the AI's), reused instead of
+/// asking the model again.
 pub fn earlier_ai_answer(con: &Connection, memo_key: &str) -> Result<Option<String>> {
     let mut stmt = con.prepare(EARLIER_AI_ANSWER)?;
     Ok(stmt.query_map(params![memo_key], |r| r.get(0))?.next().transpose()?)
@@ -305,6 +337,7 @@ pub fn recent_months(con: &Connection, limit: i64) -> Result<Vec<String>> {
 
 /// One month's money in and out. Transfers (moving money between your own
 /// accounts, paying the card bill) are kept apart so they count as neither.
+#[derive(Serialize)]
 pub struct MonthTotals {
     pub money_in: Money,
     pub money_out: Money,
@@ -323,6 +356,7 @@ pub fn month_totals(con: &Connection, month: &str, transfers_category: &str) -> 
     })?)
 }
 
+#[derive(Serialize)]
 pub struct CategorySpending {
     pub category: String,
     pub total: Money,
@@ -359,6 +393,74 @@ pub fn uncategorized(con: &Connection, limit: i64) -> Result<Vec<UncategorizedRo
         })?
         .collect::<duckdb::Result<Vec<_>>>()?;
     Ok(rows)
+}
+
+/// A transaction as the web pages show it.
+#[derive(Debug, Serialize)]
+pub struct TransactionView {
+    pub id: String,
+    pub date: String,
+    pub amount: Money,
+    pub memo: String,
+    pub account_type: Option<String>,
+    pub category: Option<String>,
+    pub category_source: Option<String>,
+    pub model: Option<String>,
+}
+
+impl TransactionView {
+    fn from_row(r: &Row<'_>) -> duckdb::Result<Self> {
+        Ok(Self {
+            id: r.get(0)?,
+            date: r.get(1)?,
+            amount: r.get(2)?,
+            memo: r.get(3)?,
+            account_type: r.get(4)?,
+            category: r.get(5)?,
+            category_source: r.get(6)?,
+            model: r.get(7)?,
+        })
+    }
+}
+
+/// Filters for [`list_transactions`]; `None` means "any".
+#[derive(Default)]
+pub struct TransactionFilter<'a> {
+    pub month: Option<&'a str>,
+    pub category: Option<&'a str>,
+    pub account_type: Option<&'a str>,
+    pub search: Option<&'a str>,
+}
+
+/// Transactions matching `filter`, newest first, at most `limit`.
+pub fn list_transactions(
+    con: &Connection,
+    filter: &TransactionFilter<'_>,
+    limit: i64,
+) -> Result<Vec<TransactionView>> {
+    let mut stmt =
+        con.prepare(&format!("SELECT {TRANSACTION_COLUMNS} FROM transactions {LIST_TRANSACTIONS}"))?;
+    let rows = stmt
+        .query_map(
+            params![filter.month, filter.category, filter.account_type, filter.search, limit],
+            TransactionView::from_row,
+        )?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(rows)
+}
+
+/// Transactions the AI categorized or nothing could, newest first.
+pub fn review_queue(con: &Connection, limit: i64) -> Result<Vec<TransactionView>> {
+    let mut stmt = con.prepare(&format!("SELECT {TRANSACTION_COLUMNS} FROM transactions {REVIEW_QUEUE}"))?;
+    let rows =
+        stmt.query_map(params![limit], TransactionView::from_row)?.collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(rows)
+}
+
+pub fn transaction(con: &Connection, id: &str) -> Result<Option<TransactionView>> {
+    let mut stmt =
+        con.prepare(&format!("SELECT {TRANSACTION_COLUMNS} FROM transactions {ONE_TRANSACTION}"))?;
+    Ok(stmt.query_map(params![id], TransactionView::from_row)?.next().transpose()?)
 }
 
 pub struct EventRow {
@@ -461,6 +563,50 @@ mod tests {
         assert!(result.is_err());
         assert!(!transaction_exists(&con, "a").unwrap());
         assert!(recent_events(&con, 10).unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_manual_correction_survives_a_rebuild() {
+        let con = open_in_memory().unwrap();
+        in_transaction(&con, |con| {
+            append(con, &observed("a", "LIVRARIA CULTURA", -3500))?;
+            append(con, &categorized("a", "Delivery"))?;
+            append(con, &Event::CategoryCorrected { id: "a".into(), category: "Shopping".into() })
+        })
+        .unwrap();
+        for _ in 0..2 {
+            let t = transaction(&con, "a").unwrap().unwrap();
+            assert_eq!(t.category.as_deref(), Some("Shopping"));
+            assert_eq!(t.category_source.as_deref(), Some("manual"));
+            assert_eq!(t.model, None);
+            rebuild(&con).unwrap();
+        }
+        assert!(review_queue(&con, 10).unwrap().is_empty());
+        // Your answer is reused for similar memos, ahead of any AI answer.
+        assert_eq!(earlier_ai_answer(&con, "LIVRARIA CULTURA").unwrap().as_deref(), Some("Shopping"));
+    }
+
+    #[test]
+    fn lists_transactions_with_optional_filters() {
+        let con = open_in_memory().unwrap();
+        in_transaction(&con, |con| {
+            append(con, &observed("a", "IFOOD *REST", -5890))?;
+            append(con, &observed("b", "LIVRARIA CULTURA", -3500))?;
+            append(con, &categorized("a", "Delivery"))
+        })
+        .unwrap();
+        let all = list_transactions(&con, &TransactionFilter::default(), 100).unwrap();
+        assert_eq!(all.len(), 2);
+        let search = TransactionFilter { search: Some("livraria"), ..Default::default() };
+        let found = list_transactions(&con, &search, 100).unwrap();
+        assert_eq!(found.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(), vec!["b"]);
+        let by_category =
+            TransactionFilter { category: Some("Delivery"), month: Some("2026-10"), ..Default::default() };
+        assert_eq!(list_transactions(&con, &by_category, 100).unwrap().len(), 1);
+        let other_month = TransactionFilter { month: Some("2026-09"), ..Default::default() };
+        assert!(list_transactions(&con, &other_month, 100).unwrap().is_empty());
+        // "b" has no category yet, so it waits for review.
+        assert_eq!(review_queue(&con, 10).unwrap().len(), 1);
     }
 
     #[test]

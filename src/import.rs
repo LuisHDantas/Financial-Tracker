@@ -6,27 +6,55 @@
 //! imported completely or not at all.
 
 use std::collections::HashSet;
+use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use duckdb::Connection;
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::events::Event;
 use crate::ofx::{self, ParsedTransaction, Statement};
 use crate::store;
 
-/// Imports one .ofx file, or every .ofx file in a folder.
-pub fn run(con: &Connection, target: &Path) -> Result<()> {
-    let files = ofx_files(target)?;
-    if files.is_empty() {
-        println!("No .ofx files in {}.", target.display());
+/// What happened to one file.
+#[derive(Debug, Serialize)]
+pub struct FileResult {
+    pub file: String,
+    /// The exact same file was imported before, so nothing was read.
+    pub already_imported: bool,
+    pub account: Option<String>,
+    pub account_type: Option<&'static str>,
+    pub in_file: usize,
+    pub added: usize,
+}
+
+impl fmt::Display for FileResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.already_imported {
+            return write!(f, "{}: already imported (same file), skipped.", self.file);
+        }
+        write!(
+            f,
+            "{} ({} {}): {} transactions in file, {} new, {} already imported.",
+            self.file,
+            self.account_type.unwrap_or_default(),
+            self.account.as_deref().unwrap_or_default(),
+            self.in_file,
+            self.added,
+            self.in_file - self.added
+        )
     }
-    for file in files {
-        import_file(con, &file).with_context(|| format!("importing {}", file.display()))?;
-    }
-    Ok(())
+}
+
+/// Imports one .ofx file, or every .ofx file in a folder (none is not an error).
+pub fn run(con: &Connection, target: &Path) -> Result<Vec<FileResult>> {
+    ofx_files(target)?
+        .iter()
+        .map(|file| import_file(con, file).with_context(|| format!("importing {}", file.display())))
+        .collect()
 }
 
 fn ofx_files(target: &Path) -> Result<Vec<PathBuf>> {
@@ -44,25 +72,31 @@ fn ofx_files(target: &Path) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
-fn import_file(con: &Connection, path: &Path) -> Result<()> {
+fn import_file(con: &Connection, path: &Path) -> Result<FileResult> {
     let bytes = fs::read(path).with_context(|| format!("reading {}", path.display()))?;
     let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     let sha256 = format!("{:x}", Sha256::digest(&bytes));
     if store::statement_exists(con, &sha256)? {
-        println!("{name}: already imported (same file), skipped.");
-        return Ok(());
+        return Ok(FileResult {
+            file: name,
+            already_imported: true,
+            account: None,
+            account_type: None,
+            in_file: 0,
+            added: 0,
+        });
     }
 
     let statement = ofx::parse(&bytes);
     let added = store::in_transaction(con, |con| record_statement(con, &statement, &name, &sha256))?;
-    let total = statement.transactions.len();
-    println!(
-        "{name} ({} {}): {total} transactions in file, {added} new, {} already imported.",
-        statement.account_type.as_str(),
-        statement.account,
-        total - added
-    );
-    Ok(())
+    Ok(FileResult {
+        file: name,
+        already_imported: false,
+        account_type: Some(statement.account_type.as_str()),
+        in_file: statement.transactions.len(),
+        account: Some(statement.account),
+        added,
+    })
 }
 
 /// Appends the events for one statement. Returns how many transactions were new.

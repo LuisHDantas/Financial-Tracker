@@ -12,6 +12,7 @@
 //! - `events.rs`, `store.rs`: the event log and the tables built from it
 //! - `money.rs`: amounts in cents
 //! - `bench.rs`: scoring the rules and the AI on labeled descriptions
+//! - `web.rs`: the web page and its JSON API (`finance serve`)
 
 mod ai;
 mod bench;
@@ -23,7 +24,9 @@ mod ofx;
 mod rules;
 mod store;
 mod summary;
+mod web;
 
+use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use anyhow::Result;
@@ -87,6 +90,13 @@ enum Command {
         #[command(flatten)]
         ai: AiArgs,
     },
+    /// Serve the web page (overview, transactions, review, import)
+    Serve {
+        #[arg(long, default_value = "0.0.0.0:8080")]
+        addr: SocketAddr,
+        #[command(flatten)]
+        ai: AiArgs,
+    },
 }
 
 #[derive(Args)]
@@ -113,11 +123,26 @@ fn main() -> Result<()> {
         // Doesn't touch the database.
         return bench::run(&Rules::load(&cli.rules)?, ai.client().as_ref(), file, split.as_deref());
     }
+    if let Command::Serve { addr, ai } = &cli.command {
+        Rules::load(&cli.rules)?; // fail at start on a bad rules file, not on the first page load
+        let config = web::Config {
+            data_dir: cli.data_dir.clone(),
+            rules_path: cli.rules.clone(),
+            ollama: (!ai.no_ai).then(|| (ai.ollama_host.clone(), ai.model.clone())),
+        };
+        return web::serve(*addr, config);
+    }
     let con = store::open(&cli.data_dir)?;
     match cli.command {
         Command::Import { path, ai } => {
             let rules = Rules::load(&cli.rules)?; // fail on a bad rules file before writing anything
-            import::run(&con, &path)?;
+            let files = import::run(&con, &path)?;
+            if files.is_empty() {
+                println!("No .ofx files in {}.", path.display());
+            }
+            for file in files {
+                println!("{file}");
+            }
             println!("{}", categorize::run(&con, &rules, ai.client(), Scope::Uncategorized, true)?);
         }
         Command::Recategorize { clear_ai_cache, ai } => {
@@ -134,7 +159,7 @@ fn main() -> Result<()> {
             let n = store::rebuild(&con)?;
             println!("Replayed {n} events into the statements and transactions tables.");
         }
-        Command::Bench { .. } => unreachable!("handled above"),
+        Command::Bench { .. } | Command::Serve { .. } => unreachable!("handled above"),
     }
     Ok(())
 }

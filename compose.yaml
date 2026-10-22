@@ -1,5 +1,5 @@
-# ./start.sh once, then ./finance import data/inbox and ./finance summary
-# (./finance runs `docker compose run --rm app ...`)
+# ./start.sh (or docker compose up -d), then open http://localhost:8080
+# CLI: ./finance import data/inbox, ./finance summary (runs `docker compose run --rm app ...`)
 # docker compose run --rm dev cargo test            (development, incremental builds)
 # docker compose run --rm dev cargo run -- import data/inbox
 services:
@@ -26,9 +26,25 @@ services:
       OLLAMA_MODEL: qwen2.5:3b
       FINANCE_DATA_DIR: /app/data
       FINANCE_RULES: /app/rules.toml
-    volumes:
+    volumes: &app-volumes
       - ./data:/app/data              # statements and the DuckDB file, never committed
       - ./rules.toml:/app/rules.toml  # edit rules without rebuilding
+    profiles: [cli]                   # only for `docker compose run app ...`, not `up`
+
+  # The web page. Published on this PC only (127.0.0.1), not on the network.
+  web:
+    build:
+      context: .
+      target: app
+    command: ["serve"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment: *env
+    volumes: *app-volumes
+    ports:
+      - "127.0.0.1:8080:8080"
+    restart: unless-stopped
 
   dev:
     build:
@@ -42,6 +58,7 @@ services:
       - .:/app                                # the source, edited on the host
       - cargo-registry:/usr/local/cargo/registry
       - dev-target:/app/target                # incremental debug builds survive between runs
+    profiles: [dev]
 
 volumes:
   ollama-models:

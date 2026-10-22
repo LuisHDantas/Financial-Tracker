@@ -1,0 +1,4 @@
+# Never send bank data (or build output) to Docker when building images.
+data/
+target/
+.git/

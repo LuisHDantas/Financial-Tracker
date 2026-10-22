@@ -13,7 +13,7 @@ From WSL Ubuntu, in the repo folder:
 ```bash
 docker compose build app                              # release image
 docker compose up -d ollama
-docker compose exec ollama ollama pull llama3.2:3b   # ~2 GB, stored in a Docker volume
+docker compose exec ollama ollama pull qwen2.5:3b    # ~1.9 GB, stored in a Docker volume
 mkdir -p data/inbox
 ```
 
@@ -36,20 +36,24 @@ is any transaction already in the database.
 
 ## Categories
 
-`rules.toml` holds the category list, the only categories anything may use, and the
-rules (regexes on the description) that run before the AI. A rule pointing to a
-category that isn't in the list is an error. When the AI gets something wrong, add
-a rule and run:
+`rules.toml` holds the category list, the only categories anything may use, the
+rules (regexes on the description) that run before the AI, and `[[examples]]` that
+are shown to the AI with every question. A rule or example pointing to a category
+that isn't in the list is an error. When the AI gets something wrong, add a rule
+(or, for a kind of merchant no single pattern covers, an example) and run:
 
 ```bash
 docker compose run --rm app recategorize
 ```
 
+The AI is a small local model, `qwen2.5:3b`, so expect it to get roughly half of
+the unusual descriptions right; rules do most of the work.
+
 `Transfers` is money moved between your own accounts, including paying the card
 bill. The summary shows it on its own line and leaves it out of income and spending,
 so card purchases aren't counted twice.
 
-Other options: `--no-ai` (rules only), `--model qwen2.5:3b` (another Ollama model),
+Other options: `--no-ai` (rules only), `--model llama3.2:3b` (another Ollama model, pulled first),
 `recategorize --clear-ai-cache` (ask the model again), `summary --months 6`.
 
 ## How the data is stored

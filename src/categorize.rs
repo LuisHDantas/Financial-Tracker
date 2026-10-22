@@ -111,7 +111,7 @@ impl Categorizer<'_> {
         let model = client.model.clone();
         let category = match self.earlier_answer(&row.memo_key)? {
             Some(category) => Some(category),
-            None => match client.categorize(&row.memo, row.amount, &self.rules.categories) {
+            None => match client.categorize(&row.memo, row.amount, self.rules) {
                 Ok(answer) => answer,
                 Err(e) => {
                     println!("Ollama failed ({e:#}); skipping AI for the rest of this run. Is the ollama container running?");

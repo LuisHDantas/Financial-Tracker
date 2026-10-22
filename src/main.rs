@@ -83,7 +83,7 @@ struct AiArgs {
     #[arg(long)]
     no_ai: bool,
     /// Ollama model to use
-    #[arg(long, env = "OLLAMA_MODEL", default_value = "llama3.2:3b")]
+    #[arg(long, env = "OLLAMA_MODEL", default_value = "qwen2.5:3b")]
     model: String,
     #[arg(long, env = "OLLAMA_HOST", default_value = "http://localhost:11434", hide = true)]
     ollama_host: String,

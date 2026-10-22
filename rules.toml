@@ -11,9 +11,10 @@ categories = [
 # When the AI gets something wrong, add a rule here and run `recategorize`.
 #
 # Every rule must point to a category from the list above. Itaú descriptions are
-# uppercase, often truncated and without accents. Short tokens use \b (word
-# boundary, written "\\b" inside the quotes) so they don't match inside other words. Anything without a rule
-# (Pix/TED to other people, boletos, withdrawals) goes to the AI.
+# uppercase, often truncated and without accents. Short tokens use \b (a word
+# boundary, written "\\b" inside the quotes) so they don't match inside other
+# words. Anything without a rule (Pix/TED to other people, boletos, withdrawals)
+# goes to the AI, which also gets the [[examples]] at the end of this file.
 #
 # "Transfers" is money moved between your own accounts, including paying the card
 # bill. The summary leaves it out of income and spending; card purchases are counted
@@ -85,4 +86,53 @@ category = "Education"
 
 [[rules]]
 pattern = "CINEMA|CINEMARK|INGRESSO|SYMPLA|STEAM"
+category = "Leisure"
+
+# Examples shown to the AI with every question, so it sees what each category
+# means for Itaú descriptions. They are not rules: nothing matches them directly.
+# Add one when the AI keeps getting a kind of transaction wrong and a rule
+# doesn't fit (e.g. different merchants of the same kind).
+
+[[examples]]
+description = "TED PARA CONTA PROPRIA NUBANK"
+category = "Transfers"
+
+[[examples]]
+description = "PIX TRANSF ANA PAULA S05/10"
+category = "Other"
+
+[[examples]]
+description = "C&A MODAS LOJA 123"
+category = "Shopping"
+
+[[examples]]
+description = "BOBS SHOPPING CENTER"
+category = "Restaurants"
+
+[[examples]]
+description = "DR CONSULTA"
+category = "Health"
+
+[[examples]]
+description = "GOL TRANSPORTES AEREOS"
+category = "Travel"
+
+[[examples]]
+description = "ESTACIO EAD"
+category = "Education"
+
+[[examples]]
+description = "COPASA"
+category = "Utilities"
+
+[[examples]]
+description = "RICO CORRETORA"
+category = "Investments"
+
+[[examples]]
+description = "OXXO"
+category = "Groceries"
+
+[[examples]]
+description = "PARQUE HOPI HARI"
 category = "Leisure"

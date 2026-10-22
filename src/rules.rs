@@ -1,5 +1,5 @@
-//! rules.toml: the category list (the only categories anything may use) and the
-//! regex rules that run before the AI.
+//! rules.toml: the category list (the only categories anything may use), the
+//! regex rules that run before the AI, and examples that the AI is shown.
 
 use std::path::Path;
 
@@ -19,6 +19,8 @@ struct RulesFile {
     categories: Vec<String>,
     #[serde(default)]
     rules: Vec<RuleDef>,
+    #[serde(default)]
+    examples: Vec<Example>,
 }
 
 #[derive(Deserialize)]
@@ -27,9 +29,17 @@ struct RuleDef {
     category: String,
 }
 
+/// A statement description and its right category, shown to the AI.
+#[derive(Debug, Deserialize)]
+pub struct Example {
+    pub description: String,
+    pub category: String,
+}
+
 #[derive(Debug)]
 pub struct Rules {
     pub categories: Vec<String>,
+    pub examples: Vec<Example>,
     rules: Vec<(Regex, String)>,
 }
 
@@ -60,7 +70,16 @@ impl Rules {
                 .with_context(|| format!("rule {} has an invalid pattern {:?}", i + 1, def.pattern))?;
             rules.push((re, def.category));
         }
-        Ok(Self { categories: file.categories, rules })
+        for example in &file.examples {
+            if !file.categories.contains(&example.category) {
+                bail!(
+                    "example {:?} uses category {:?}, which is not in `categories`",
+                    example.description,
+                    example.category
+                );
+            }
+        }
+        Ok(Self { categories: file.categories, examples: file.examples, rules })
     }
 
     /// Category of the first rule that matches, top to bottom.
@@ -122,6 +141,18 @@ category = "Utilities"
     #[test]
     fn rejects_an_invalid_pattern() {
         assert!(Rules::parse(&RULES.replace("IFOOD|RAPPI", "IFOOD(")).is_err());
+    }
+
+    #[test]
+    fn reads_examples_and_checks_their_categories() {
+        let with_example =
+            format!("{RULES}\n[[examples]]\ndescription = \"COPASA\"\ncategory = \"Utilities\"\n");
+        let rules = Rules::parse(&with_example).unwrap();
+        assert_eq!(rules.examples.len(), 1);
+        assert_eq!(rules.examples[0].description, "COPASA");
+        let unknown = format!("{RULES}\n[[examples]]\ndescription = \"COPASA\"\ncategory = \"Water\"\n");
+        let err = Rules::parse(&unknown).unwrap_err();
+        assert!(err.to_string().contains("COPASA"), "{err}");
     }
 
     #[test]

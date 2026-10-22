@@ -6,30 +6,33 @@ categorizes them for free (rules first, then a local model through Ollama), keep
 everything in DuckDB and prints a monthly summary. Everything runs in Docker, so
 nothing is installed on the host and no bank data leaves the machine.
 
-## Setup (once)
+## Start
 
 From WSL Ubuntu, in the repo folder:
 
 ```bash
-docker compose build app                              # release image
-docker compose up -d ollama
-docker compose exec ollama ollama pull qwen2.5:3b    # ~1.9 GB, stored in a Docker volume
-mkdir -p data/inbox
+./start.sh
 ```
+
+It starts the local AI, downloads the model the first time (~1.9 GB, kept in a
+Docker volume), builds the app and creates `data/inbox/`. Run it again after a
+restart; it's quick once everything is downloaded.
 
 ## Monthly use
 
 1. Itaú internet banking → Conta corrente → Extrato por período → "Salvar em outros
    formatos" → **OFX / Money 2000**. Do the same for the credit card statement if
    it offers OFX, so card purchases are counted one by one.
-2. Save the files into `data/inbox/` (from Windows: `\\wsl$\Ubuntu-22.04\home\<user>\projects\Financial-Tracker\data\inbox`).
+2. Save the files into `data/inbox/` (from Windows: `\\wsl$\Ubuntu\home\<user>\projects\Financial-Tracker\data\inbox`).
 3. Run:
 
 ```bash
-docker compose up -d ollama
-docker compose run --rm app import data/inbox
-docker compose run --rm app summary
+./finance import data/inbox
+./finance summary
 ```
+
+`./finance` runs the app in Docker (`docker compose run --rm app ...`); `./finance --help`
+lists every command.
 
 Importing the same file twice is safe: a file already imported is skipped, and so
 is any transaction already in the database.
@@ -43,7 +46,7 @@ that isn't in the list is an error. When the AI gets something wrong, add a rule
 (or, for a kind of merchant no single pattern covers, an example) and run:
 
 ```bash
-docker compose run --rm app recategorize
+./finance recategorize
 ```
 
 The AI is a small local model, `qwen2.5:3b`, so expect it to get roughly half of
@@ -68,8 +71,8 @@ The `statements` and `transactions` tables are projections of the log, updated i
 the same database transaction as each event. They can be thrown away and rebuilt:
 
 ```bash
-docker compose run --rm app events --limit 20   # look at the log
-docker compose run --rm app rebuild             # replay it into fresh tables
+./finance events --limit 20   # look at the log
+./finance rebuild             # replay it into fresh tables
 ```
 
 ## Development

@@ -1,5 +1,5 @@
-# docker compose run --rm app import data/inbox     (release image)
-# docker compose run --rm app summary
+# ./start.sh once, then ./finance import data/inbox and ./finance summary
+# (./finance runs `docker compose run --rm app ...`)
 # docker compose run --rm dev cargo test            (development, incremental builds)
 # docker compose run --rm dev cargo run -- import data/inbox
 services:
@@ -8,12 +8,19 @@ services:
     volumes:
       - ollama-models:/root/.ollama   # models survive restarts
     # no ports published: only the app containers can reach it
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
 
   app:
     build:
       context: .
       target: app
-    depends_on: [ollama]
+    depends_on:
+      ollama:
+        condition: service_healthy
     environment: &env
       OLLAMA_HOST: http://ollama:11434
       OLLAMA_MODEL: qwen2.5:3b
@@ -27,7 +34,9 @@ services:
     build:
       context: .
       target: dev
-    depends_on: [ollama]
+    depends_on:
+      ollama:
+        condition: service_healthy
     environment: *env
     volumes:
       - .:/app                                # the source, edited on the host

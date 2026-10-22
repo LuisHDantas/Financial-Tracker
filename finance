@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Runs the app in Docker, e.g. ./finance summary, ./finance import data/inbox, ./finance --help
+# Run ./start.sh once first.
+cd "$(dirname "$0")"
+exec docker compose run --rm app "$@"

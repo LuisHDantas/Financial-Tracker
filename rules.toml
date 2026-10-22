@@ -3,7 +3,7 @@ categories = [
   "Income", "Housing", "Groceries", "Restaurants", "Delivery",
   "Transport", "Health", "Education", "Shopping", "Subscriptions",
   "Utilities", "Travel", "Leisure", "Fees",
-  "Investments", "Other",
+  "Investments", "Transfers", "Other",
 ]
 
 # Rules run first, top to bottom; the first match wins. Patterns are regular
@@ -13,7 +13,11 @@ categories = [
 # Every rule must point to a category from the list above. Itaú descriptions are
 # uppercase, often truncated and without accents. Short tokens use \b (word
 # boundary, written "\\b" inside the quotes) so they don't match inside other words. Anything without a rule
-# (PIX/TED transfers, boletos, card bill, withdrawals) goes to the AI.
+# (Pix/TED to other people, boletos, withdrawals) goes to the AI.
+#
+# "Transfers" is money moved between your own accounts, including paying the card
+# bill. The summary leaves it out of income and spending; card purchases are counted
+# one by one when you import the card statement.
 
 [[rules]]
 pattern = "SALARIO|REMUNERACAO|PROVENTOS|\\bFERIAS\\b|\\bINSS\\b"
@@ -26,6 +30,11 @@ category = "Investments"
 [[rules]]
 pattern = "^TAR\\b|TARIFA|\\bIOF\\b|JUROS|\\bMORA\\b|ENCARGOS|ANUIDADE"
 category = "Fees"
+
+# Paying the card bill from checking, and the matching credit on the card statement.
+[[rules]]
+pattern = "FATURA|ITAU CARTAO|ITAUCARD|PAG FAT|PAGAMENTO EFETUADO"
+category = "Transfers"
 
 # Before Restaurants and Transport, so "IFOOD *RESTAURANTE" and "UBER EATS" land here.
 [[rules]]

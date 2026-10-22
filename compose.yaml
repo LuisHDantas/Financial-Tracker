@@ -1,22 +1,40 @@
-# docker compose run --rm app import data/inbox
+# docker compose run --rm app import data/inbox     (release image)
 # docker compose run --rm app summary
+# docker compose run --rm dev cargo test            (development, incremental builds)
+# docker compose run --rm dev cargo run -- import data/inbox
 services:
   ollama:
     image: ollama/ollama:0.5.4
     volumes:
       - ollama-models:/root/.ollama   # models survive restarts
-    # no ports published: only the app container can reach it
+    # no ports published: only the app containers can reach it
 
   app:
-    build: .
+    build:
+      context: .
+      target: app
     depends_on: [ollama]
-    environment:
+    environment: &env
       OLLAMA_HOST: http://ollama:11434
       OLLAMA_MODEL: llama3.2:3b
       FINANCE_DATA_DIR: /app/data
+      FINANCE_RULES: /app/rules.toml
     volumes:
       - ./data:/app/data              # statements and the DuckDB file, never committed
       - ./rules.toml:/app/rules.toml  # edit rules without rebuilding
 
+  dev:
+    build:
+      context: .
+      target: dev
+    depends_on: [ollama]
+    environment: *env
+    volumes:
+      - .:/app                                # the source, edited on the host
+      - cargo-registry:/usr/local/cargo/registry
+      - dev-target:/app/target                # incremental debug builds survive between runs
+
 volumes:
   ollama-models:
+  cargo-registry:
+  dev-target:

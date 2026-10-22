@@ -1,6 +1,0 @@
-[project]
-name = "financial-tracker"
-version = "0.1.0"
-description = "Personal finance tracker: Itaú OFX statements, local AI categorization, DuckDB"
-requires-python = ">=3.11"
-dependencies = ["duckdb>=1.1"]

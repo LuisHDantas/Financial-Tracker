@@ -7,5 +7,4 @@ data/
 *.csv
 .env
 
-__pycache__/
-.venv/
+target/

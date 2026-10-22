@@ -1,0 +1,725 @@
+# Made-up Itaú-style descriptions with the right category, for `finance bench`.
+#
+# split = "dev": used while improving the prompt (look at these as much as you like).
+# split = "test": only checked once per round, to see whether an improvement is
+# real or just fits the dev cases. Don't tune on the test cases.
+#
+# None of these are real transactions. Amounts are negative for money out.
+
+# --- dev ----------------------------------------------------------------------
+
+[[case]]
+description = "PIX QRS ACAI DA PRAIA"
+amount = "-18.00"
+category = "Restaurants"
+split = "dev"
+
+[[case]]
+description = "COMPRA CARTAO DEB HAMBURGUERIA CENTRAL"
+amount = "-42.00"
+category = "Restaurants"
+split = "dev"
+
+[[case]]
+description = "PIX QRS BAR DO ZE"
+amount = "-65.00"
+category = "Restaurants"
+split = "dev"
+
+[[case]]
+description = "SORVETERIA GELATO 24/10"
+amount = "-15.00"
+category = "Restaurants"
+split = "dev"
+
+[[case]]
+description = "PIX TRANSF JOSE CARLOS 03/10"
+amount = "-150.00"
+category = "Other"
+split = "dev"
+
+[[case]]
+description = "PIX TRANSF FERNANDA L 11/10"
+amount = "-40.00"
+category = "Other"
+split = "dev"
+
+[[case]]
+description = "PIX TRANSF MESMA TITULAR"
+amount = "-800.00"
+category = "Transfers"
+split = "dev"
+
+[[case]]
+description = "TED ENVIADA CONTA PROPRIA BB"
+amount = "-2000.00"
+category = "Transfers"
+split = "dev"
+
+[[case]]
+description = "PIX RECEBIDO MESMA TITULARIDADE"
+amount = "700.00"
+category = "Transfers"
+split = "dev"
+
+[[case]]
+description = "TED RECEBIDA EMPRESA ABC LTDA"
+amount = "4500.00"
+category = "Income"
+split = "dev"
+
+[[case]]
+description = "PIX RECEBIDO FREELA DESIGN"
+amount = "800.00"
+category = "Income"
+split = "dev"
+
+[[case]]
+description = "PAG BOLETO NET COMBO"
+amount = "-199.90"
+category = "Utilities"
+split = "dev"
+
+[[case]]
+description = "DEBITO AUT ELETROPAULO"
+amount = "-180.00"
+category = "Utilities"
+split = "dev"
+
+[[case]]
+description = "DEBITO AUT GAS NATURAL SP"
+amount = "-60.00"
+category = "Utilities"
+split = "dev"
+
+[[case]]
+description = "COMPRA CARTAO DEB PETZ"
+amount = "-120.00"
+category = "Shopping"
+split = "dev"
+
+[[case]]
+description = "LEROY MERLIN 0045"
+amount = "-350.00"
+category = "Shopping"
+split = "dev"
+
+[[case]]
+description = "COMPRA CARTAO DECATHLON"
+amount = "-210.00"
+category = "Shopping"
+split = "dev"
+
+[[case]]
+description = "KABUM COMERCIO ELETRONI"
+amount = "-899.00"
+category = "Shopping"
+split = "dev"
+
+[[case]]
+description = "HIPERMERCADO BIG"
+amount = "-312.00"
+category = "Groceries"
+split = "dev"
+
+[[case]]
+description = "COMPRA CARTAO DEB DIA BRASIL"
+amount = "-45.00"
+category = "Groceries"
+split = "dev"
+
+[[case]]
+description = "SACOLAO DO BAIRRO"
+amount = "-38.00"
+category = "Groceries"
+split = "dev"
+
+[[case]]
+description = "DELIVERY MUCH"
+amount = "-55.00"
+category = "Delivery"
+split = "dev"
+
+[[case]]
+description = "99FOOD *PEDIDO"
+amount = "-40.00"
+category = "Delivery"
+split = "dev"
+
+[[case]]
+description = "CABIFY *CORRIDA"
+amount = "-32.00"
+category = "Transport"
+split = "dev"
+
+[[case]]
+description = "PEDAGIO ECOVIAS"
+amount = "-18.50"
+category = "Transport"
+split = "dev"
+
+[[case]]
+description = "ZONA AZUL DIGITAL"
+amount = "-6.00"
+category = "Transport"
+split = "dev"
+
+[[case]]
+description = "OFICINA MECANICA DO JOAO"
+amount = "-450.00"
+category = "Transport"
+split = "dev"
+
+[[case]]
+description = "ULTRAFARMA"
+amount = "-70.00"
+category = "Health"
+split = "dev"
+
+[[case]]
+description = "PIX TRANSF PSICOLOGA ANA"
+amount = "-200.00"
+category = "Health"
+split = "dev"
+
+[[case]]
+description = "FLEURY MEDICINA DIAG"
+amount = "-95.00"
+category = "Health"
+split = "dev"
+
+[[case]]
+description = "MICROSOFT*XBOX GAME PASS"
+amount = "-45.00"
+category = "Subscriptions"
+split = "dev"
+
+[[case]]
+description = "ADOBE *CREATIVE CLOUD"
+amount = "-120.00"
+category = "Subscriptions"
+split = "dev"
+
+[[case]]
+description = "123MILHAS"
+amount = "-900.00"
+category = "Travel"
+split = "dev"
+
+[[case]]
+description = "HOTEIS.COM"
+amount = "-640.00"
+category = "Travel"
+split = "dev"
+
+[[case]]
+description = "SENAC CURSOS LIVRES"
+amount = "-350.00"
+category = "Education"
+split = "dev"
+
+[[case]]
+description = "PAG BOLETO MENSALIDADE ANGLO"
+amount = "-1800.00"
+category = "Education"
+split = "dev"
+
+[[case]]
+description = "TEATRO RENAULT"
+amount = "-180.00"
+category = "Leisure"
+split = "dev"
+
+[[case]]
+description = "PLAYSTATION NETWORK"
+amount = "-250.00"
+category = "Leisure"
+split = "dev"
+
+[[case]]
+description = "CESTA DE SERVICOS"
+amount = "-45.00"
+category = "Fees"
+split = "dev"
+
+[[case]]
+description = "TAXA SAQUE BANCO24H"
+amount = "-6.50"
+category = "Fees"
+split = "dev"
+
+[[case]]
+description = "SAQUE 24H 0341"
+amount = "-200.00"
+category = "Other"
+split = "dev"
+
+[[case]]
+description = "NUINVEST APORTE"
+amount = "-500.00"
+category = "Investments"
+split = "dev"
+
+[[case]]
+description = "PREVIDENCIA BRASILPREV"
+amount = "-300.00"
+category = "Investments"
+split = "dev"
+
+[[case]]
+description = "IMOBILIARIA LOPES"
+amount = "-2500.00"
+category = "Housing"
+split = "dev"
+
+[[case]]
+description = "PAG BOLETO ADM CONDOMIN"
+amount = "-780.00"
+category = "Housing"
+split = "dev"
+
+[[case]]
+description = "JUROS POUPANCA"
+amount = "3.20"
+category = "Investments"
+split = "dev"
+
+[[case]]
+description = "REEMBOLSO DESPESAS EMPRESA"
+amount = "230.00"
+category = "Income"
+split = "dev"
+
+[[case]]
+description = "PAG BOLETO CLARO RESIDENCIAL"
+amount = "-129.90"
+category = "Utilities"
+split = "dev"
+
+[[case]]
+description = "MC DONALDS AV PAULISTA"
+amount = "-38.00"
+category = "Restaurants"
+split = "dev"
+
+[[case]]
+description = "COMPRA CARTAO PAO DE ACUCAR"
+amount = "-189.00"
+category = "Groceries"
+split = "dev"
+
+[[case]]
+description = "UBER *TRIP HELP.UBER.COM"
+amount = "-27.40"
+category = "Transport"
+split = "dev"
+
+[[case]]
+description = "NETFLIX.COM"
+amount = "-55.90"
+category = "Subscriptions"
+split = "dev"
+
+[[case]]
+description = "TAR PACOTE ITAU"
+amount = "-39.90"
+category = "Fees"
+split = "dev"
+
+[[case]]
+description = "ITAU CARTAO PAG FAT"
+amount = "-1450.00"
+category = "Transfers"
+split = "dev"
+
+[[case]]
+description = "PAGTO SALARIO"
+amount = "6200.00"
+category = "Income"
+split = "dev"
+
+[[case]]
+description = "REND PAGO APLIC AUT MAIS"
+amount = "12.40"
+category = "Investments"
+split = "dev"
+
+[[case]]
+description = "IFOOD *RESTAURANTE BOM"
+amount = "-64.00"
+category = "Delivery"
+split = "dev"
+
+[[case]]
+description = "DROGASIL 2231"
+amount = "-48.00"
+category = "Health"
+split = "dev"
+
+[[case]]
+description = "CINEMARK SHOPPING"
+amount = "-60.00"
+category = "Leisure"
+split = "dev"
+
+[[case]]
+description = "AMAZON MARKETPLACE"
+amount = "-149.00"
+category = "Shopping"
+split = "dev"
+
+# --- test ---------------------------------------------------------------------
+
+[[case]]
+description = "PIX TRANSF MESMA TITULARIDADE"
+amount = "-500.00"
+category = "Transfers"
+split = "test"
+
+[[case]]
+description = "TED 341 CONTA PROPRIA"
+amount = "-1200.00"
+category = "Transfers"
+split = "test"
+
+[[case]]
+description = "PIX TRANSF MARIA S12/10"
+amount = "-80.00"
+category = "Other"
+split = "test"
+
+[[case]]
+description = "LIVRARIA CULTURA"
+amount = "-35.00"
+category = "Shopping"
+split = "test"
+
+[[case]]
+description = "CENTAURO ESPORTES"
+amount = "-199.90"
+category = "Shopping"
+split = "test"
+
+[[case]]
+description = "ZARA BRASIL LTDA"
+amount = "-259.00"
+category = "Shopping"
+split = "test"
+
+[[case]]
+description = "COCO BAMBU"
+amount = "-180.00"
+category = "Restaurants"
+split = "test"
+
+[[case]]
+description = "MADERO STEAK HOUSE"
+amount = "-95.00"
+category = "Restaurants"
+split = "test"
+
+[[case]]
+description = "SUBWAY PAULISTA"
+amount = "-32.00"
+category = "Restaurants"
+split = "test"
+
+[[case]]
+description = "JAMES DELIVERY"
+amount = "-48.00"
+category = "Delivery"
+split = "test"
+
+[[case]]
+description = "CRUNCHYROLL"
+amount = "-29.99"
+category = "Subscriptions"
+split = "test"
+
+[[case]]
+description = "OPENAI *CHATGPT SUBSCR"
+amount = "-110.00"
+category = "Subscriptions"
+split = "test"
+
+[[case]]
+description = "TAP AIR PORTUGAL"
+amount = "-3500.00"
+category = "Travel"
+split = "test"
+
+[[case]]
+description = "POUSADA DO SOL"
+amount = "-420.00"
+category = "Travel"
+split = "test"
+
+[[case]]
+description = "LOCALIZA RENT A CAR"
+amount = "-380.00"
+category = "Travel"
+split = "test"
+
+[[case]]
+description = "SABIN MEDICINA DIAGNOSTICA"
+amount = "-150.00"
+category = "Health"
+split = "test"
+
+[[case]]
+description = "ODONTOPREV"
+amount = "-45.00"
+category = "Health"
+split = "test"
+
+[[case]]
+description = "WIZARD IDIOMAS MENSALIDADE"
+amount = "-320.00"
+category = "Education"
+split = "test"
+
+[[case]]
+description = "PUC SP MENSALIDADE"
+amount = "-2100.00"
+category = "Education"
+split = "test"
+
+[[case]]
+description = "TICKETMASTER BRASIL"
+amount = "-250.00"
+category = "Leisure"
+split = "test"
+
+[[case]]
+description = "CPFL ENERGIA"
+amount = "-210.00"
+category = "Utilities"
+split = "test"
+
+[[case]]
+description = "SANEPAR"
+amount = "-90.00"
+category = "Utilities"
+split = "test"
+
+[[case]]
+description = "QUINTO ANDAR ALUGUE"
+amount = "-2200.00"
+category = "Housing"
+split = "test"
+
+[[case]]
+description = "SAMS CLUB"
+amount = "-430.00"
+category = "Groceries"
+split = "test"
+
+[[case]]
+description = "XP INVESTIMENTOS"
+amount = "-1000.00"
+category = "Investments"
+split = "test"
+
+[[case]]
+description = "CRED TED ACME LTDA"
+amount = "2500.00"
+category = "Income"
+split = "test"
+
+[[case]]
+description = "PIX QRS PASTELARIA DA FEIRA"
+amount = "-22.00"
+category = "Restaurants"
+split = "test"
+
+[[case]]
+description = "COMPRA CARTAO DEB CHURRASCO GAUCHO"
+amount = "-140.00"
+category = "Restaurants"
+split = "test"
+
+[[case]]
+description = "PIX TRANSF RICARDO M 20/10"
+amount = "-60.00"
+category = "Other"
+split = "test"
+
+[[case]]
+description = "TRANSF CC PARA POUPANCA"
+amount = "-500.00"
+category = "Transfers"
+split = "test"
+
+[[case]]
+description = "PIX RECEBIDO CONTA PROPRIA"
+amount = "1000.00"
+category = "Transfers"
+split = "test"
+
+[[case]]
+description = "TED RECEBIDA CONSULTORIA XYZ"
+amount = "3200.00"
+category = "Income"
+split = "test"
+
+[[case]]
+description = "DEBITO AUT SABESP"
+amount = "-95.00"
+category = "Utilities"
+split = "test"
+
+[[case]]
+description = "PAG BOLETO VIVO FIBRA"
+amount = "-110.00"
+category = "Utilities"
+split = "test"
+
+[[case]]
+description = "COMPRA CARTAO DEB COBASI"
+amount = "-80.00"
+category = "Shopping"
+split = "test"
+
+[[case]]
+description = "MERCADOPAGO*LOJA ONLINE"
+amount = "-59.00"
+category = "Shopping"
+split = "test"
+
+[[case]]
+description = "ST MARCHE VILA MADALENA"
+amount = "-230.00"
+category = "Groceries"
+split = "test"
+
+[[case]]
+description = "EMPORIO SANTA MARIA"
+amount = "-150.00"
+category = "Groceries"
+split = "test"
+
+[[case]]
+description = "RAPPI BRASIL"
+amount = "-47.00"
+category = "Delivery"
+split = "test"
+
+[[case]]
+description = "TAXI COOPERTAXI"
+amount = "-60.00"
+category = "Transport"
+split = "test"
+
+[[case]]
+description = "DETRAN SP LICENCIAMENTO"
+amount = "-160.00"
+category = "Transport"
+split = "test"
+
+[[case]]
+description = "AUTO POSTO SAO JORGE"
+amount = "-200.00"
+category = "Transport"
+split = "test"
+
+[[case]]
+description = "HOSPITAL ALBERT EINSTEIN"
+amount = "-300.00"
+category = "Health"
+split = "test"
+
+[[case]]
+description = "PAG BOLETO UNIMED"
+amount = "-650.00"
+category = "Health"
+split = "test"
+
+[[case]]
+description = "KINDLE UNLTD"
+amount = "-24.90"
+category = "Subscriptions"
+split = "test"
+
+[[case]]
+description = "SPOTIFY"
+amount = "-21.90"
+category = "Subscriptions"
+split = "test"
+
+[[case]]
+description = "CVC VIAGENS"
+amount = "-2300.00"
+category = "Travel"
+split = "test"
+
+[[case]]
+description = "RODOVIARIA TIETE PASSAGEM"
+amount = "-120.00"
+category = "Travel"
+split = "test"
+
+[[case]]
+description = "CURSO ALURA"
+amount = "-90.00"
+category = "Education"
+split = "test"
+
+[[case]]
+description = "SHOW ROCK IN RIO"
+amount = "-600.00"
+category = "Leisure"
+split = "test"
+
+[[case]]
+description = "BILHETERIA ESTADIO"
+amount = "-90.00"
+category = "Leisure"
+split = "test"
+
+[[case]]
+description = "JUROS CHEQUE ESPECIAL"
+amount = "-32.10"
+category = "Fees"
+split = "test"
+
+[[case]]
+description = "IOF ADICIONAL"
+amount = "-4.20"
+category = "Fees"
+split = "test"
+
+[[case]]
+description = "INTER DTVM APLIC"
+amount = "-1000.00"
+category = "Investments"
+split = "test"
+
+[[case]]
+description = "RES APLIC AUT MAIS"
+amount = "300.00"
+category = "Investments"
+split = "test"
+
+[[case]]
+description = "ALUGUEL OUTUBRO"
+amount = "-2500.00"
+category = "Housing"
+split = "test"
+
+[[case]]
+description = "PAG FAT ITAUCARD"
+amount = "-980.00"
+category = "Transfers"
+split = "test"
+
+[[case]]
+description = "REMUNERACAO PJ"
+amount = "5000.00"
+category = "Income"
+split = "test"
+
+[[case]]
+description = "SAQUE CAIXA ELETRONICO"
+amount = "-100.00"
+category = "Other"
+split = "test"

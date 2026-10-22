@@ -6,6 +6,26 @@ categories = [
   "Investments", "Transfers", "Other",
 ]
 
+# What each category means, in one line. The AI sees these with every question.
+[meanings]
+Income = "salary, payment for work, reimbursements from an employer"
+Housing = "rent, condominium fees, IPTU, real estate agencies"
+Groceries = "supermarkets, bakeries, markets, produce, butchers"
+Restaurants = "restaurants, bars, cafés, snack bars, fast food, ice cream: eating out"
+Delivery = "food delivery apps"
+Transport = "ride apps, taxis, fuel, parking, tolls, car repair, car insurance, public transport"
+Health = "pharmacies, doctors, dentists, labs, hospitals, health insurance, therapy"
+Education = "schools, universities, courses, language schools"
+Shopping = "stores, clothes, sports gear, electronics, books, pet shops, home goods, online marketplaces"
+Subscriptions = "streaming, software and app subscriptions, monthly digital services"
+Utilities = "electricity, water, gas, internet, phone bills"
+Travel = "flights, hotels, inns, car rental, bus tickets, travel agencies"
+Leisure = "cinema, theater, shows, tickets, games, parks"
+Fees = "only fees and interest charged by the bank itself: package fees, IOF, overdraft interest"
+Investments = "investing, brokerages, pension plans, savings and investment yields"
+Transfers = "only paying your own credit card bill or moving money between your own accounts"
+Other = "Pix to other people, cash withdrawals, anything that fits nothing else"
+
 # Rules run first, top to bottom; the first match wins. Patterns are regular
 # expressions matched against the statement description, case-insensitive.
 # When the AI gets something wrong, add a rule here and run `recategorize`.

@@ -11,8 +11,10 @@
 //! - `rules.rs`, `ai.rs`: the two ways of choosing a category
 //! - `events.rs`, `store.rs`: the event log and the tables built from it
 //! - `money.rs`: amounts in cents
+//! - `bench.rs`: scoring the rules and the AI on labeled descriptions
 
 mod ai;
+mod bench;
 mod categorize;
 mod events;
 mod import;
@@ -75,6 +77,16 @@ enum Command {
     },
     /// Rebuild the statements and transactions tables by replaying every event
     Rebuild,
+    /// Score the rules and the AI on labeled made-up descriptions
+    Bench {
+        #[arg(long, default_value = "bench/descriptions.toml")]
+        file: PathBuf,
+        /// Only the "dev" or "test" cases
+        #[arg(long)]
+        split: Option<String>,
+        #[command(flatten)]
+        ai: AiArgs,
+    },
 }
 
 #[derive(Args)]
@@ -97,6 +109,10 @@ impl AiArgs {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    if let Command::Bench { file, split, ai } = &cli.command {
+        // Doesn't touch the database.
+        return bench::run(&Rules::load(&cli.rules)?, ai.client().as_ref(), file, split.as_deref());
+    }
     let con = store::open(&cli.data_dir)?;
     match cli.command {
         Command::Import { path, ai } => {
@@ -118,6 +134,7 @@ fn main() -> Result<()> {
             let n = store::rebuild(&con)?;
             println!("Replayed {n} events into the statements and transactions tables.");
         }
+        Command::Bench { .. } => unreachable!("handled above"),
     }
     Ok(())
 }

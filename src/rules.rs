@@ -1,6 +1,7 @@
 //! rules.toml: the category list (the only categories anything may use), the
 //! regex rules that run before the AI, and examples that the AI is shown.
 
+use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::{bail, Context, Result};
@@ -17,6 +18,8 @@ pub const TRANSFERS: &str = "Transfers";
 #[derive(Deserialize)]
 struct RulesFile {
     categories: Vec<String>,
+    #[serde(default)]
+    meanings: HashMap<String, String>,
     #[serde(default)]
     rules: Vec<RuleDef>,
     #[serde(default)]
@@ -39,6 +42,8 @@ pub struct Example {
 #[derive(Debug)]
 pub struct Rules {
     pub categories: Vec<String>,
+    /// A short explanation per category, shown to the AI (not every category needs one).
+    pub meanings: HashMap<String, String>,
     pub examples: Vec<Example>,
     rules: Vec<(Regex, String)>,
 }
@@ -79,7 +84,10 @@ impl Rules {
                 );
             }
         }
-        Ok(Self { categories: file.categories, examples: file.examples, rules })
+        if let Some(unknown) = file.meanings.keys().find(|k| !file.categories.contains(k)) {
+            bail!("[meanings] has {unknown:?}, which is not in `categories`");
+        }
+        Ok(Self { categories: file.categories, meanings: file.meanings, examples: file.examples, rules })
     }
 
     /// Category of the first rule that matches, top to bottom.
@@ -153,6 +161,15 @@ category = "Utilities"
         let unknown = format!("{RULES}\n[[examples]]\ndescription = \"COPASA\"\ncategory = \"Water\"\n");
         let err = Rules::parse(&unknown).unwrap_err();
         assert!(err.to_string().contains("COPASA"), "{err}");
+    }
+
+    #[test]
+    fn meanings_must_name_known_categories() {
+        let ok = format!("{RULES}\n[meanings]\nFees = \"bank fees\"\n");
+        assert_eq!(Rules::parse(&ok).unwrap().meanings["Fees"], "bank fees");
+        let unknown = format!("{RULES}\n[meanings]\nWater = \"water bills\"\n");
+        let err = Rules::parse(&unknown).unwrap_err();
+        assert!(err.to_string().contains("Water"), "{err}");
     }
 
     #[test]

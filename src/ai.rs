@@ -16,7 +16,7 @@ use anyhow::{Context, Result};
 use serde_json::{json, Value};
 
 use crate::money::Money;
-use crate::rules::{Rules, TRANSFERS};
+use crate::rules::Rules;
 
 /// A connection to one model on an Ollama server.
 pub struct Ollama {
@@ -61,15 +61,16 @@ impl Ollama {
     }
 }
 
-/// The question for one transaction: the categories, what Transfers means, the
+/// The question for one transaction: the categories with their meanings and the
 /// examples from rules.toml, then the transaction itself.
 fn prompt(memo: &str, amount: Money, rules: &Rules) -> String {
     let mut text = String::from("Categorize this Brazilian bank transaction from an Itaú statement.\n");
-    text += &format!("Categories: {}\n", rules.categories.join(", "));
-    if rules.categories.iter().any(|c| c == TRANSFERS) {
-        // Narrow on purpose: a longer explanation made the model pick Transfers for almost everything.
-        text += "\"Transfers\" is only for paying your own credit card bill or moving money \
-                 between your own accounts.\n";
+    text += "Categories:\n";
+    for category in &rules.categories {
+        match rules.meanings.get(category) {
+            Some(meaning) => text += &format!("- {category}: {meaning}\n"),
+            None => text += &format!("- {category}\n"),
+        }
     }
     if !rules.examples.is_empty() {
         text += "Examples:\n";
@@ -98,6 +99,9 @@ mod tests {
     const RULES: &str = r#"
 categories = ["Delivery", "Transfers", "Other"]
 
+[meanings]
+Transfers = "only moving money between your own accounts"
+
 [[examples]]
 description = "TED PARA CONTA PROPRIA"
 category = "Transfers"
@@ -113,12 +117,16 @@ category = "Transfers"
     }
 
     #[test]
-    fn prompt_lists_categories_and_examples() {
+    fn prompt_lists_categories_meanings_and_examples() {
         let rules = Rules::parse(RULES).unwrap();
         let p = prompt("IFOOD *REST", Money(-5890), &rules);
-        assert!(p.contains("Categories: Delivery, Transfers, Other\n"), "{p}");
+        assert!(
+            p.contains(
+                "Categories:\n- Delivery\n- Transfers: only moving money between your own accounts\n- Other\n"
+            ),
+            "{p}"
+        );
         assert!(p.contains("Examples:\n- TED PARA CONTA PROPRIA -> Transfers\n"), "{p}");
-        assert!(p.contains("\"Transfers\" is only for"), "{p}");
         // The transaction comes after the examples, so the model doesn't mistake one for the other.
         assert!(p.find("Examples:").unwrap() < p.find("Description: IFOOD").unwrap());
     }
@@ -127,7 +135,7 @@ category = "Transfers"
     fn prompt_leaves_out_what_rules_toml_doesnt_have() {
         let rules = Rules::parse("categories = [\"Delivery\", \"Other\"]").unwrap();
         let p = prompt("IFOOD *REST", Money(-5890), &rules);
-        assert!(!p.contains("Transfers"), "{p}");
+        assert!(p.contains("Categories:\n- Delivery\n- Other\n"), "{p}");
         assert!(!p.contains("Examples:"), "{p}");
     }
 

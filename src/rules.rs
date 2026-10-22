@@ -114,7 +114,8 @@ category = "Utilities"
 
     #[test]
     fn rejects_a_rule_with_an_unknown_category() {
-        let err = Rules::parse(&RULES.replace("category = \"Fees\"", "category = \"Bank fees\"")).unwrap_err();
+        let err =
+            Rules::parse(&RULES.replace("category = \"Fees\"", "category = \"Bank fees\"")).unwrap_err();
         assert!(err.to_string().contains("Bank fees"), "{err}");
     }
 

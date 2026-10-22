@@ -10,7 +10,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     && cp /tmp/libduckdb/libduckdb.so /usr/local/lib/ \
     && cp /tmp/libduckdb/duckdb.h /usr/local/include/ \
     && rm -rf /tmp/libduckdb /tmp/libduckdb.zip \
-    && ldconfig
+    && ldconfig \
+    && rustup component add clippy rustfmt
 ENV DUCKDB_LIB_DIR=/usr/local/lib \
     DUCKDB_INCLUDE_DIR=/usr/local/include \
     LD_LIBRARY_PATH=/usr/local/lib

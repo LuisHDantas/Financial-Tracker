@@ -1,5 +1,9 @@
-//! OFX statement parsing. Handles SGML OFX (Itaú's "OFX / Money 2000" export, which
-//! has no closing tags) and XML OFX. Amounts become integer cents, never floats.
+//! Reading OFX statement files.
+//!
+//! OFX comes in two flavors: SGML (what Itaú's "OFX / Money 2000" export uses),
+//! where tags are often never closed (`<TRNAMT>-58.90` and then the next tag), and
+//! XML, where they are. Reading each value up to the next `<` or line break works
+//! for both, so there's no full OFX parser here.
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -8,7 +12,9 @@ use regex::Regex;
 use sha2::{Digest, Sha256};
 
 use crate::events::AccountType;
+use crate::money::Money;
 
+/// One statement file: the account it belongs to and its transactions.
 pub struct Statement {
     pub account: String,
     pub account_type: AccountType,
@@ -16,17 +22,20 @@ pub struct Statement {
 }
 
 pub struct ParsedTransaction {
+    /// Stable id: the same transaction gets the same id in every export.
     pub id: String,
     pub fitid: String,
     pub date: String, // YYYY-MM-DD
-    pub amount_cents: i64,
+    pub amount: Money,
     pub memo: String,
     pub trn_type: Option<String>,
 }
 
+/// Parses a statement. Transactions without a usable date or amount are skipped.
 pub fn parse(bytes: &[u8]) -> Statement {
     let text = decode(bytes);
-    let upper = text.to_ascii_uppercase(); // same byte offsets as `text`
+    // ASCII uppercasing keeps every byte offset the same as in `text`.
+    let upper = text.to_ascii_uppercase();
     // ACCTID sits in BANKACCTFROM (checking) or CCACCTFROM (credit card).
     let account = tag(&text, "ACCTID").unwrap_or_else(|| "unknown".into());
     let account_type = if upper.contains("<CCSTMTRS>") || upper.contains("<CCACCTFROM>") {
@@ -34,52 +43,55 @@ pub fn parse(bytes: &[u8]) -> Statement {
     } else {
         AccountType::Checking
     };
-
-    let mut transactions = Vec::new();
-    for block in blocks(&text, &upper) {
-        let (Some(posted), Some(amount)) = (tag(block, "DTPOSTED"), tag(block, "TRNAMT")) else {
-            continue;
-        };
-        let (Some(date), Some(amount_cents)) = (parse_date(&posted), parse_cents(&amount)) else {
-            continue;
-        };
-        let memo = tag(block, "MEMO")
-            .filter(|m| !m.is_empty())
-            .or_else(|| tag(block, "NAME"))
-            .unwrap_or_default();
-        let memo = memo.split_whitespace().collect::<Vec<_>>().join(" ");
-        let fitid = tag(block, "FITID").unwrap_or_default();
-        let key = format!("{account}|{fitid}|{date}|{amount_cents}|{memo}");
-        transactions.push(ParsedTransaction {
-            id: format!("{:x}", Sha256::digest(key.as_bytes()))[..24].to_string(),
-            fitid,
-            date,
-            amount_cents,
-            memo,
-            trn_type: tag(block, "TRNTYPE"),
-        });
-    }
+    let transactions = transaction_blocks(&text, &upper)
+        .into_iter()
+        .filter_map(|block| parse_transaction(block, &account))
+        .collect();
     Statement { account, account_type, transactions }
 }
 
+fn parse_transaction(block: &str, account: &str) -> Option<ParsedTransaction> {
+    let date = parse_date(&tag(block, "DTPOSTED")?)?;
+    let amount = Money::parse(&tag(block, "TRNAMT")?)?;
+    let memo =
+        tag(block, "MEMO").filter(|m| !m.is_empty()).or_else(|| tag(block, "NAME")).unwrap_or_default();
+    let memo = memo.split_whitespace().collect::<Vec<_>>().join(" ");
+    let fitid = tag(block, "FITID").unwrap_or_default();
+    Some(ParsedTransaction {
+        id: transaction_id(account, &fitid, &date, amount, &memo),
+        fitid,
+        date,
+        amount,
+        memo,
+        trn_type: tag(block, "TRNTYPE"),
+    })
+}
+
+/// First 24 hex characters of sha256("account|fitid|date|cents|memo").
+fn transaction_id(account: &str, fitid: &str, date: &str, amount: Money, memo: &str) -> String {
+    let key = format!("{account}|{fitid}|{date}|{}|{memo}", amount.0);
+    format!("{:x}", Sha256::digest(key.as_bytes()))[..24].to_string()
+}
+
+/// UTF-8 if it is valid UTF-8, otherwise Windows-1252, which Brazilian banks often use.
 fn decode(bytes: &[u8]) -> String {
     match std::str::from_utf8(bytes) {
         Ok(text) => text.to_owned(),
-        // Brazilian banks often export Windows-1252 (Latin-1).
         Err(_) => encoding_rs::WINDOWS_1252.decode(bytes).0.into_owned(),
     }
 }
 
-/// The text of every <STMTTRN> block, up to the next one or the end of the list.
-fn blocks<'a>(text: &'a str, upper: &str) -> Vec<&'a str> {
+/// The text of every `<STMTTRN>` block, up to the next one or the end of the list.
+fn transaction_blocks<'a>(text: &'a str, upper: &str) -> Vec<&'a str> {
     const OPEN: &str = "<STMTTRN>";
+    const LIST_ENDS: [&str; 2] = ["</BANKTRANLIST>", "</CCSTMTRS>"];
     let starts: Vec<usize> = upper.match_indices(OPEN).map(|(i, _)| i + OPEN.len()).collect();
     starts
         .iter()
         .enumerate()
         .map(|(k, &start)| {
             let mut end = starts.get(k + 1).map_or(text.len(), |&next| next - OPEN.len());
-            for close in ["</BANKTRANLIST>", "</CCSTMTRS>"] {
+            for close in LIST_ENDS {
                 if let Some(i) = upper[start..end].find(close) {
                     end = start + i;
                 }
@@ -89,13 +101,14 @@ fn blocks<'a>(text: &'a str, upper: &str) -> Vec<&'a str> {
         .collect()
 }
 
-/// Value of `<NAME>value`. Works for SGML (no closing tag) and XML.
+/// The value after `<NAME>`, trimmed. Works with and without closing tags.
 fn tag(block: &str, name: &str) -> Option<String> {
     const TAGS: [&str; 7] = ["ACCTID", "DTPOSTED", "TRNAMT", "MEMO", "NAME", "FITID", "TRNTYPE"];
+    // Compiled once, the first time any tag is read.
     static PATTERNS: OnceLock<HashMap<&'static str, Regex>> = OnceLock::new();
     let patterns = PATTERNS.get_or_init(|| {
         TAGS.iter()
-            .map(|t| (*t, Regex::new(&format!(r"(?i)<{t}>([^<\r\n]*)")).unwrap()))
+            .map(|t| (*t, Regex::new(&format!(r"(?i)<{t}>([^<\r\n]*)")).expect("valid tag pattern")))
             .collect()
     });
     patterns[name].captures(block).map(|c| c[1].trim().to_string())
@@ -112,33 +125,6 @@ fn parse_date(posted: &str) -> Option<String> {
         return None;
     }
     Some(format!("{}-{}-{}", &d[..4], &d[4..6], &d[6..8]))
-}
-
-/// "-58.90", "-23,50", "1.234,56" or "1,234.56" -> cents, rounding half up.
-fn parse_cents(text: &str) -> Option<i64> {
-    let mut s = text.trim().replace(' ', "");
-    match (s.rfind(','), s.rfind('.')) {
-        (Some(comma), Some(dot)) if comma > dot => s = s.replace('.', "").replace(',', "."),
-        (Some(_), Some(_)) => s = s.replace(',', ""),
-        (Some(_), None) => s = s.replace(',', "."),
-        _ => {}
-    }
-    let (negative, digits) = match s.strip_prefix('-') {
-        Some(rest) => (true, rest),
-        None => (false, s.strip_prefix('+').unwrap_or(&s)),
-    };
-    let (int, frac) = digits.split_once('.').unwrap_or((digits, ""));
-    let all_digits = |part: &str| part.bytes().all(|b| b.is_ascii_digit());
-    if (int.is_empty() && frac.is_empty()) || !all_digits(int) || !all_digits(frac) {
-        return None;
-    }
-    let int: i64 = if int.is_empty() { 0 } else { int.parse().ok()? };
-    let mut frac3: String = frac.chars().take(3).collect();
-    while frac3.len() < 3 {
-        frac3.push('0');
-    }
-    let cents = int.checked_mul(100)? + (frac3.parse::<i64>().ok()? + 5) / 10;
-    Some(if negative { -cents } else { cents })
 }
 
 #[cfg(test)]
@@ -159,11 +145,11 @@ mod tests {
         assert_eq!(s.transactions.len(), 2);
         let t = &s.transactions[0];
         assert_eq!(t.date, "2026-10-05");
-        assert_eq!(t.amount_cents, -5890);
+        assert_eq!(t.amount, Money(-5890));
         assert_eq!(t.memo, "IFOOD *RESTAURANTE");
         assert_eq!(t.fitid, "A1");
         assert_eq!(t.trn_type.as_deref(), Some("DEBIT"));
-        assert_eq!(s.transactions[1].amount_cents, 150_000);
+        assert_eq!(s.transactions[1].amount, Money(150_000));
     }
 
     #[test]
@@ -175,7 +161,7 @@ mod tests {
         assert_eq!(s.account, "999");
         assert_eq!(s.transactions.len(), 1);
         assert_eq!(s.transactions[0].memo, "PADARIA");
-        assert_eq!(s.transactions[0].amount_cents, -2350);
+        assert_eq!(s.transactions[0].amount, Money(-2350));
     }
 
     #[test]
@@ -189,35 +175,23 @@ mod tests {
         assert_eq!(s.account, "5555XXXXXXXX1234");
         assert_eq!(s.account_type, AccountType::CreditCard);
         assert_eq!(s.transactions.len(), 2);
-        assert_eq!(s.transactions[0].amount_cents, -12_000); // purchases are money out
+        assert_eq!(s.transactions[0].amount, Money(-12_000)); // purchases are money out
         assert_eq!(s.transactions[0].memo, "RESTAURANTE BOM SABOR");
-        assert_eq!(s.transactions[1].amount_cents, 95_000);
+        assert_eq!(s.transactions[1].amount, Money(95_000));
     }
 
     #[test]
     fn decodes_windows_1252_accents_and_comma_decimals() {
-        let mut bytes = b"<ACCTID>1<BANKTRANLIST><STMTTRN><DTPOSTED>20261008<TRNAMT>-23,50<FITID>C1<MEMO>PADARIA S".to_vec();
+        let mut bytes =
+            b"<ACCTID>1<BANKTRANLIST><STMTTRN><DTPOSTED>20261008<TRNAMT>-23,50<FITID>C1<MEMO>PADARIA S"
+                .to_vec();
         bytes.push(0xC3); // 'Ã' in Windows-1252, invalid as UTF-8 here
         bytes.extend(b"O JO");
         bytes.push(0xC3);
         bytes.extend(b"O</BANKTRANLIST>");
         let s = parse(&bytes);
         assert_eq!(s.transactions[0].memo, "PADARIA SÃO JOÃO");
-        assert_eq!(s.transactions[0].amount_cents, -2350);
-    }
-
-    #[test]
-    fn amounts_are_exact_cents() {
-        assert_eq!(parse_cents("-58.90"), Some(-5890));
-        assert_eq!(parse_cents("-23,50"), Some(-2350));
-        assert_eq!(parse_cents("1.234,56"), Some(123_456));
-        assert_eq!(parse_cents("1,234.56"), Some(123_456));
-        assert_eq!(parse_cents("12"), Some(1200));
-        assert_eq!(parse_cents("-0,5"), Some(-50));
-        assert_eq!(parse_cents("0.1"), Some(10));
-        assert_eq!(parse_cents("2.995"), Some(300));
-        assert_eq!(parse_cents("abc"), None);
-        assert_eq!(parse_cents(""), None);
+        assert_eq!(s.transactions[0].amount, Money(-2350));
     }
 
     #[test]
@@ -233,5 +207,13 @@ mod tests {
     fn skips_blocks_without_date_or_amount() {
         let s = parse(b"<BANKTRANLIST><STMTTRN><MEMO>NO DATE<TRNAMT>-1.00</BANKTRANLIST>");
         assert!(s.transactions.is_empty());
+    }
+
+    #[test]
+    fn rejects_impossible_dates() {
+        assert_eq!(parse_date("20261005"), Some("2026-10-05".into()));
+        assert_eq!(parse_date("20261305"), None);
+        assert_eq!(parse_date("2026-10-"), None);
+        assert_eq!(parse_date("2026"), None);
     }
 }

@@ -23,7 +23,19 @@ use crate::money::Money;
 #[serde(tag = "type")]
 pub enum Event {
     /// A statement file was read. Its sha256 stops the same file being imported twice.
-    StatementImported { file_name: String, sha256: String, account: String, txn_count: i64 },
+    StatementImported {
+        file_name: String,
+        sha256: String,
+        account: String,
+        txn_count: i64,
+        /// The transactions this file added, so `StatementRetracted` can remove them.
+        /// Empty in events written before this field existed.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        transaction_ids: Vec<String>,
+    },
+    /// A statement was taken back (`finance forget`): its transactions are removed
+    /// and the same file can be imported again, e.g. after a parser fix.
+    StatementRetracted { file_name: String, sha256: String },
     /// A transaction was seen for the first time.
     TransactionObserved {
         id: String,
@@ -48,6 +60,7 @@ impl Event {
     pub fn kind(&self) -> &'static str {
         match self {
             Self::StatementImported { .. } => "StatementImported",
+            Self::StatementRetracted { .. } => "StatementRetracted",
             Self::TransactionObserved { .. } => "TransactionObserved",
             Self::TransactionCategorized { .. } => "TransactionCategorized",
             Self::CategoryCorrected { .. } => "CategoryCorrected",

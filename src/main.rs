@@ -97,6 +97,8 @@ enum Command {
     },
     /// Show a statement's line shapes (no content) to adjust parsers.toml
     Inspect { file: PathBuf },
+    /// Take back an imported statement (by file name or sha256) so it can be imported again
+    Forget { statement: String },
     /// Serve the web page (overview, transactions, review, import)
     Serve {
         #[arg(long, default_value = "0.0.0.0:8080")]
@@ -124,6 +126,26 @@ impl AiArgs {
     }
 }
 
+/// Appends a `StatementRetracted` event for one imported statement.
+fn forget(con: &duckdb::Connection, key: &str) -> Result<()> {
+    let found = store::find_statements(con, key)?;
+    let (sha256, file_name, count) = match found.as_slice() {
+        [] => anyhow::bail!("no imported statement is called {key:?} (use the file name, e.g. extrato.pdf)"),
+        [one] => one.clone(),
+        many => {
+            let names: Vec<String> =
+                many.iter().map(|(sha, name, _)| format!("{name} ({})", &sha[..12])).collect();
+            anyhow::bail!("{key:?} matches several statements; use the sha256 instead: {}", names.join(", "));
+        }
+    };
+    let event = events::Event::StatementRetracted { file_name: file_name.clone(), sha256 };
+    store::in_transaction(con, |con| store::append(con, &event))?;
+    println!(
+        "Forgot {file_name}: removed {count} transactions. Import it again with ./finance import data/inbox"
+    );
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
     if let Command::Bench { file, split, ai } = &cli.command {
@@ -133,13 +155,13 @@ fn main() -> Result<()> {
     if let Command::Inspect { file } = &cli.command {
         let layouts = Layouts::load(&cli.parsers)?;
         let is_pdf = file.extension().is_some_and(|e| e.eq_ignore_ascii_case("pdf"));
-        let text = if is_pdf {
-            pdf::extract_text(file)?
+        let doc = if is_pdf {
+            pdf::extract(file)?
         } else {
             let bytes = std::fs::read(file).with_context(|| format!("reading {}", file.display()))?;
-            String::from_utf8_lossy(&bytes).into_owned()
+            pdf::Doc::from_text(&String::from_utf8_lossy(&bytes))
         };
-        print!("{}", pdf::inspect(&text, &layouts));
+        print!("{}", pdf::inspect(&doc, &layouts));
         return Ok(());
     }
     if let Command::Serve { addr, ai } = &cli.command {
@@ -183,6 +205,7 @@ fn main() -> Result<()> {
             let n = store::rebuild(&con)?;
             println!("Replayed {n} events into the statements and transactions tables.");
         }
+        Command::Forget { statement } => forget(&con, &statement)?,
         Command::Bench { .. } | Command::Inspect { .. } | Command::Serve { .. } => {
             unreachable!("handled above")
         }

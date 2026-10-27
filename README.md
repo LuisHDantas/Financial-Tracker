@@ -54,6 +54,21 @@ day) stay two transactions, and importing the same PDF again adds nothing.
 These layouts were written from what Itaú statements usually look like and tested
 with made-up PDFs, so a real one may need a small change in `parsers.toml`.
 
+Each PDF import prints checks that need no one to look at the data:
+
+- **Checking**: amounts are green (money in) or red (money out) on Itaú's statement;
+  the color decides the sign, and a line where a minus sign disagrees is reported.
+  The balance check confirms each SALDO line equals the one before plus the
+  movements in between, and lists the dates where it doesn't.
+- **Card**: the bill check confirms the purchases read add up to the bill's totals.
+
+If a statement was imported wrong, take it back and import it again after a fix:
+
+```bash
+./finance forget itau_extrato_092026.pdf     # removes its transactions (an event, so rebuild agrees)
+./finance import data/inbox
+```
+
 ### If a PDF doesn't import
 
 Run:
@@ -64,10 +79,12 @@ Run:
 
 It prints only the *shape* of each line: every letter becomes `a`/`A` and every
 digit `9`, so `05/10 IFOOD *RESTAURANTE 58,90` shows as
-`99/99 AAAAA *AAAAAAAAAAA 99,99`. No names, places or amounts. It also marks which
-lines would be read as transactions (✓) and where reading stops (■). Check the
-output yourself first, and share a few lines only if you want to; they're enough to
-adjust `parsers.toml`.
+`99/99 AAAAA *AAAAAAAAAAA 99,99`. No names, places or amounts. It marks what each
+line is read as (✓ transaction with + green / − red amount, c bank category line,
+= balance, Σ bill total, i fee, ■ reading stops, ?s/?l/?d looks like a transaction
+but was skipped) and prints the same checks as the import. Check the output
+yourself first, and share a few lines only if you want to; they're enough to adjust
+`parsers.toml`.
 
 The same from the command line:
 
@@ -112,6 +129,7 @@ The source of truth is an append-only event log, the `events` table:
 - `TransactionObserved`: a transaction was seen for the first time
 - `TransactionCategorized`: a transaction got a new category, from a rule, the AI or neither
 - `CategoryCorrected`: you chose a transaction's category on the web page
+- `StatementRetracted`: a statement was taken back with `finance forget`
 
 The `statements` and `transactions` tables are projections of the log, updated in
 the same database transaction as each event. They can be thrown away and rebuilt:

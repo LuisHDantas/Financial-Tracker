@@ -53,9 +53,13 @@ CREATE TABLE IF NOT EXISTS transactions (
     category        VARCHAR,
     category_source VARCHAR,                -- 'manual', 'rule', 'ai' or 'none'
     model           VARCHAR,
-    last_seq        BIGINT                  -- last event applied to this row
+    last_seq        BIGINT,                 -- last event applied to this row
+    statement_sha256 VARCHAR                -- the statement file that added it
 );
 ";
+
+/// Brings a projection created by an older version up to date.
+const MIGRATIONS: &str = "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS statement_sha256 VARCHAR;";
 
 const DROP_PROJECTIONS: &str = "DROP TABLE statements; DROP TABLE transactions;";
 
@@ -77,7 +81,24 @@ const SET_CATEGORY: &str =
 const SET_MANUAL_CATEGORY: &str =
     "UPDATE transactions SET category = ?, category_source = 'manual', model = NULL, last_seq = ? WHERE id = ?";
 
+const LINK_TO_STATEMENT: &str = "UPDATE transactions SET statement_sha256 = ? WHERE id = ?";
+
+/// Statements imported before transactions were linked to them are matched by file name.
+const DELETE_STATEMENT_TRANSACTIONS: &str =
+    "DELETE FROM transactions WHERE statement_sha256 = ? OR (statement_sha256 IS NULL AND source_file = ?)";
+
+const DELETE_STATEMENT: &str = "DELETE FROM statements WHERE sha256 = ?";
+
 const ALL_EVENTS: &str = "SELECT seq, payload FROM events ORDER BY seq";
+
+/// Imported statements matching a file name or the start of a sha256.
+const FIND_STATEMENTS: &str = "
+SELECT s.sha256, s.file_name,
+       (SELECT count(*) FROM transactions t
+        WHERE t.statement_sha256 = s.sha256 OR (t.statement_sha256 IS NULL AND t.source_file = s.file_name))
+FROM statements s
+WHERE s.file_name = ? OR s.sha256 LIKE ? || '%'
+ORDER BY s.seq";
 
 // --- Reads -------------------------------------------------------------------
 
@@ -166,6 +187,7 @@ pub fn open_in_memory() -> Result<Connection> {
 fn create_tables(con: &Connection) -> Result<()> {
     con.execute_batch(EVENTS_SCHEMA).context("creating the events table")?;
     con.execute_batch(PROJECTIONS_SCHEMA).context("creating the projection tables")?;
+    con.execute_batch(MIGRATIONS).context("updating the projection tables")?;
     Ok(())
 }
 
@@ -201,8 +223,15 @@ pub fn append(con: &Connection, event: &Event) -> Result<i64> {
 /// Updates the projections for one event.
 fn apply(con: &Connection, seq: i64, event: &Event) -> Result<()> {
     match event {
-        Event::StatementImported { file_name, sha256, account, txn_count } => {
+        Event::StatementImported { file_name, sha256, account, txn_count, transaction_ids } => {
             con.execute(INSERT_STATEMENT, params![sha256, file_name, account, txn_count, seq])?;
+            for id in transaction_ids {
+                con.execute(LINK_TO_STATEMENT, params![sha256, id])?;
+            }
+        }
+        Event::StatementRetracted { file_name, sha256 } => {
+            con.execute(DELETE_STATEMENT_TRANSACTIONS, params![sha256, file_name])?;
+            con.execute(DELETE_STATEMENT, params![sha256])?;
         }
         Event::TransactionObserved {
             id,
@@ -278,6 +307,18 @@ pub fn memo_key(memo: &str) -> String {
 pub fn statement_exists(con: &Connection, sha256: &str) -> Result<bool> {
     let n: i64 = con.query_row(STATEMENT_EXISTS, params![sha256], |r| r.get(0))?;
     Ok(n > 0)
+}
+
+/// An imported statement: (sha256, file name, how many transactions it added).
+pub type StatementSummary = (String, String, i64);
+
+/// Imported statements whose file name is `key` or whose sha256 starts with it.
+pub fn find_statements(con: &Connection, key: &str) -> Result<Vec<StatementSummary>> {
+    let mut stmt = con.prepare(FIND_STATEMENTS)?;
+    let rows = stmt
+        .query_map(params![key, key], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
+        .collect::<duckdb::Result<Vec<_>>>()?;
+    Ok(rows)
 }
 
 pub fn transaction_exists(con: &Connection, id: &str) -> Result<bool> {
@@ -563,6 +604,56 @@ mod tests {
         assert!(result.is_err());
         assert!(!transaction_exists(&con, "a").unwrap());
         assert!(recent_events(&con, 10).unwrap().is_empty());
+    }
+
+    fn imported(sha: &str, ids: &[&str]) -> Event {
+        Event::StatementImported {
+            file_name: "test.ofx".into(),
+            sha256: sha.into(),
+            account: "1".into(),
+            txn_count: ids.len() as i64,
+            transaction_ids: ids.iter().map(|id| id.to_string()).collect(),
+        }
+    }
+
+    #[test]
+    fn a_retracted_statement_can_be_imported_again_and_rebuild_agrees() {
+        let con = open_in_memory().unwrap();
+        in_transaction(&con, |con| {
+            append(con, &observed("a", "IFOOD", -5890))?;
+            append(con, &observed("b", "PADARIA", -1000))?;
+            append(con, &imported("sha1", &["a", "b"]))
+        })
+        .unwrap();
+        assert_eq!(find_statements(&con, "test.ofx").unwrap(), vec![("sha1".into(), "test.ofx".into(), 2)]);
+        assert_eq!(find_statements(&con, "sha").unwrap().len(), 1);
+
+        in_transaction(&con, |con| {
+            append(con, &Event::StatementRetracted { file_name: "test.ofx".into(), sha256: "sha1".into() })
+        })
+        .unwrap();
+        assert!(!transaction_exists(&con, "a").unwrap());
+        assert!(!statement_exists(&con, "sha1").unwrap());
+
+        // The same file again, read better this time (one transaction fixed).
+        in_transaction(&con, |con| {
+            append(con, &observed("a", "IFOOD", -5890))?;
+            append(con, &observed("c", "PADARIA", 1000))?;
+            append(con, &imported("sha1", &["a", "c"]))
+        })
+        .unwrap();
+        let ids = |con: &Connection| -> Vec<String> {
+            list_transactions(con, &TransactionFilter::default(), 10)
+                .unwrap()
+                .into_iter()
+                .map(|t| t.id)
+                .collect()
+        };
+        let before = ids(&con);
+        assert_eq!(before.len(), 2);
+        assert_eq!(rebuild(&con).unwrap(), 7);
+        assert_eq!(ids(&con), before);
+        assert!(statement_exists(&con, "sha1").unwrap());
     }
 
     #[test]

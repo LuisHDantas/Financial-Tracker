@@ -29,6 +29,9 @@ pub struct ParsedTransaction {
     pub amount: Money,
     pub memo: String,
     pub trn_type: Option<String>,
+    /// The bank's own category for the purchase, when the statement prints one
+    /// (Itaú card bills do, in lowercase under each purchase). Never in OFX.
+    pub bank_category: Option<String>,
 }
 
 /// Parses a statement. Transactions without a usable date or amount are skipped.
@@ -64,6 +67,7 @@ fn parse_transaction(block: &str, account: &str) -> Option<ParsedTransaction> {
         amount,
         memo,
         trn_type: tag(block, "TRNTYPE"),
+        bank_category: None,
     })
 }
 

@@ -31,6 +31,8 @@ pub struct FileResult {
     pub account_type: Option<&'static str>,
     pub in_file: usize,
     pub added: usize,
+    /// PDF checks (balances add up, bill totals match, color conflicts).
+    pub checks: Vec<String>,
 }
 
 impl fmt::Display for FileResult {
@@ -47,7 +49,11 @@ impl fmt::Display for FileResult {
             self.in_file,
             self.added,
             self.in_file - self.added
-        )
+        )?;
+        for check in &self.checks {
+            write!(f, "\n  {check}")?;
+        }
+        Ok(())
     }
 }
 
@@ -79,23 +85,24 @@ fn statement_files(target: &Path) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
-/// Reads a statement: OFX directly, PDF through the best-fitting layout.
-fn read_statement(path: &Path, bytes: &[u8], layouts: &Layouts) -> Result<Statement> {
+/// Reads a statement: OFX directly, PDF through the best-fitting layout (which
+/// also gives the checks).
+fn read_statement(path: &Path, bytes: &[u8], layouts: &Layouts) -> Result<(Statement, Vec<String>)> {
     if !is_pdf(path) {
-        return Ok(ofx::parse(bytes));
+        return Ok((ofx::parse(bytes), Vec::new()));
     }
-    let text = pdf::extract_text(path)?;
-    let Some(layout) = layouts.detect(&text) else {
+    let doc = pdf::extract(path)?;
+    let Some(layout) = layouts.detect(&doc.text()) else {
         bail!("this PDF doesn't look like any layout in parsers.toml; run `./finance inspect` on it");
     };
-    let statement = pdf::parse(&text, layout);
-    if statement.transactions.is_empty() {
+    let analysis = pdf::parse(&doc, layout);
+    if analysis.statement.transactions.is_empty() {
         bail!(
             "no transactions found with the {} layout; run `./finance inspect` on it and adjust parsers.toml",
             layout.name
         );
     }
-    Ok(statement)
+    Ok((analysis.statement, analysis.checks))
 }
 
 fn import_file(con: &Connection, path: &Path, layouts: &Layouts) -> Result<FileResult> {
@@ -110,10 +117,11 @@ fn import_file(con: &Connection, path: &Path, layouts: &Layouts) -> Result<FileR
             account_type: None,
             in_file: 0,
             added: 0,
+            checks: Vec::new(),
         });
     }
 
-    let statement = read_statement(path, &bytes, layouts)?;
+    let (statement, checks) = read_statement(path, &bytes, layouts)?;
     let added = store::in_transaction(con, |con| record_statement(con, &statement, &name, &sha256))?;
     Ok(FileResult {
         file: name,
@@ -122,12 +130,13 @@ fn import_file(con: &Connection, path: &Path, layouts: &Layouts) -> Result<FileR
         in_file: statement.transactions.len(),
         account: Some(statement.account),
         added,
+        checks,
     })
 }
 
 /// Appends the events for one statement. Returns how many transactions were new.
 fn record_statement(con: &Connection, statement: &Statement, file_name: &str, sha256: &str) -> Result<usize> {
-    let mut added = 0;
+    let mut added = Vec::new();
     let mut seen = HashSet::new();
     for transaction in &statement.transactions {
         // Skip repeats within the file and transactions an earlier file already had.
@@ -135,8 +144,9 @@ fn record_statement(con: &Connection, statement: &Statement, file_name: &str, sh
             continue;
         }
         store::append(con, &observed(statement, transaction, file_name))?;
-        added += 1;
+        added.push(transaction.id.clone());
     }
+    let count = added.len();
     store::append(
         con,
         &Event::StatementImported {
@@ -144,9 +154,10 @@ fn record_statement(con: &Connection, statement: &Statement, file_name: &str, sh
             sha256: sha256.to_string(),
             account: statement.account.clone(),
             txn_count: statement.transactions.len() as i64,
+            transaction_ids: added,
         },
     )?;
-    Ok(added)
+    Ok(count)
 }
 
 fn observed(statement: &Statement, transaction: &ParsedTransaction, file_name: &str) -> Event {

@@ -1,6 +1,6 @@
 # How PDF statements are read. PDFs have no fixed format like OFX, so each bank
-# layout is described here with regular expressions (case-insensitive) that are
-# matched against the PDF's text, line by line. Adjust them if a PDF doesn't import:
+# layout is described here with regular expressions (case-insensitive unless noted)
+# matched against the PDF's lines. Adjust them if a PDF doesn't import right:
 # `./finance inspect file.pdf` shows the shape of each line without the content.
 #
 # For each layout:
@@ -9,11 +9,22 @@
 #   transaction         a transaction inside a line. Needs the groups (?P<date>...),
 #                       (?P<description>...) and (?P<amount>...); (?P<dc>D|C) is optional
 #                       for amounts marked D (debit) or C (credit). A line can hold more than
-#                       one transaction (card bills print two columns).
-#   skip                descriptions to ignore (balances, totals)
-#   stop                stop reading at the first line matching this (e.g. future installments)
+#                       one transaction (card bills print two columns). A date right after
+#                       "Label:" (Vencimento: 05/11/2026 ...) is never a transaction.
+#   skip                descriptions to ignore (totals, minimum payment)
+#   balance             descriptions of balance lines (checking): not transactions, but the
+#                       movements between two of them must add up, which is checked
+#   color_sign          the amount's color gives its sign: green money in, red money out
+#   stop                stop reading at the first line matching this (future installments)
 #   account             where the account number is, as (?P<account>...)
-#   purchases_positive  true when purchases are printed as positive numbers (card bills)
+#   purchases_positive  purchases are printed as positive numbers (card bills)
+#   totals              labels of the bill's totals; the purchases read must add up to them
+#   fees                lines like "Repasse de IOF em R$ 1,94" that are charges without a date
+#                       (they get the date of the transaction before them)
+#   last_amount_from    from a line matching this (a "US$ R$" header), take each
+#   last_amount_until   transaction's last amount (R$) until a line matching the second one
+#   bank_category       (case-sensitive) the bank's own category on the line under a
+#                       purchase, lined up with its description, as (?P<category>...)
 #
 # Dates may be DD/MM/YYYY, DD/MM/YY or DD/MM. Without a year, the year comes from the
 # latest full date in the document (the due date on a card bill): a month after that
@@ -23,16 +34,23 @@
 account_type = "checking"
 detect = ["EXTRATO", "CONTA CORRENTE", "SALDO DO DIA", "SALDO ANTERIOR", "LANÇAMENTOS"]
 transaction = '(?P<date>\b\d{2}/\d{2}(?:/\d{2,4})?)\s+(?P<description>\S.*?)\s{2,}(?P<amount>-?\s?(?:R\$\s?)?\d{1,3}(?:\.\d{3})*,\d{2}-?)(?:\s(?P<dc>[DC])\b)?'
-skip = '^SALDO|SALDO DO DIA|SALDO ANTERIOR|SALDO TOTAL|SALDO FINAL|^TOTAL'
+balance = 'SALDO DO DIA|SALDO ANTERIOR|SALDO FINAL|SALDO TOTAL'
+skip = '^SALDO|^TOTAL'
+color_sign = true
 stop = 'LAN[CÇ]AMENTOS FUTUROS'
 account = 'CONTA\s*:?\s*(?P<account>\d{4,6}-\d)'
-purchases_positive = false
 
 [pdf.itau_card]
 account_type = "credit_card"
 detect = ["FATURA", "VENCIMENTO", "CARTÃO", "PAGAMENTO MÍNIMO", "LIMITE"]
 transaction = '(?P<date>\b\d{2}/\d{2}(?:/\d{2,4})?)\s+(?P<description>\S.*?)\s{2,}(?P<amount>-?\s?(?:R\$\s?)?\d{1,3}(?:\.\d{3})*,\d{2}-?)'
-skip = '^TOTAL|^SALDO|PAGAMENTO M[IÍ]NIMO'
-stop = 'PR[OÓ]XIMAS FATURAS'
+skip = '^TOTAL|^SALDO|^=|PAGAMENTO M[IÍ]NIMO'
+# Only the section header, not "Total para próximas faturas" in a column.
+stop = 'COMPRAS PARCELADAS\s*-?\s*PR[OÓ]XIMAS FATURAS'
 account = 'FINAL\s+(?P<account>\d{4})'
 purchases_positive = true
+totals = ['TOTAL DOS LAN[CÇ]AMENTOS ATUAIS', 'TOTAL TRANSA[CÇ][OÕ]ES INTER']
+fees = [{ pattern = 'REPASSE DE IOF', memo = "REPASSE DE IOF" }]
+last_amount_from = 'US\$'
+last_amount_until = 'TOTAL TRANSA[CÇ][OÕ]ES INTER'
+bank_category = '^(?P<category>\p{Ll}[\p{Ll}\s,/.-]*?)\s*(?:\p{Lu}[\p{Lu}\s.\x27-]*)?$'
